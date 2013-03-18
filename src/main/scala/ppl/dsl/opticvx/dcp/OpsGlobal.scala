@@ -36,7 +36,7 @@ trait DCPOpsGlobal {
     globalArity -= 1
   }
 
-  implicit def int2irpoly(i: Int): IRPoly = IRPoly.const(1, globalArity)
+  implicit def int2irpoly(i: Int): IRPoly = IRPoly.const(i, globalArity)
 
   def scalar: IRPoly = IRPoly.const(1, globalArity)
   def vector(size: IRPoly): IRPoly = {

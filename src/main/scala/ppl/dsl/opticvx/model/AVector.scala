@@ -41,6 +41,7 @@ trait AVector extends HasInput[AVector] {
     memory: Seq[W])(tv: V): V = 
   {
     if(size.eval(params)(runtime.intlikei) != runtime.size(tv)) {
+      println(params)
       println(size)
       println(size.eval(params)(runtime.intlikei))
       println(runtime.size(tv))
@@ -54,6 +55,7 @@ trait AVector extends HasInput[AVector] {
   def arityVerify() {
     if(size.arity != arity) throw new IRValidationException()
     if(input.arity != arity) throw new IRValidationException()
+    //if(!(size.isNonNegative)) throw new IRValidationException()
   }
 
   def +(u: AVector) = AVectorSum(this, u)

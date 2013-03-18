@@ -17,6 +17,8 @@ sealed trait Almap extends HasInput[Almap] {
     if (input.arity != arity) throw new IRValidationException()
     if (domain.arity != arity) throw new IRValidationException()
     if (codomain.arity != arity) throw new IRValidationException()
+    // if (!(domain.isNonNegative)) throw new IRValidationException()
+    // if (!(codomain.isNonNegative)) throw new IRValidationException()
   }
   
   //The transpose

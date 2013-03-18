@@ -108,8 +108,8 @@ object Function {
     }
     if(!(x.codomain.invariantAt(len.arity))) throw new IRValidationException()
     Function(
-      x.input,
-      x.argSize,
+      x.input.demote,
+      x.argSize map (a => a.demote),
       x.sign,
       x.tonicity,
       x.vexity,
@@ -132,8 +132,8 @@ object Function {
       if(!(sz.invariantAt(len.arity))) throw new IRValidationException()
     }
     Function(
-      x.input,
-      x.argSize,
+      x.input.demote,
+      x.argSize map (a => a.demote),
       x.sign,
       x.tonicity,
       x.vexity,

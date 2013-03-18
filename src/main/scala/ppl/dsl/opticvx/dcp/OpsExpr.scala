@@ -115,7 +115,11 @@ trait DCPOpsExpr extends DCPOpsGlobal {
         fx.conicOffset,
         fx.conicCone))
     }
+    def sum: CvxExpr = {
+      CvxExpr(Function.sumfor(size, CvxExpr(fx.promote).apply(IRPoly.param(size.arity, size.arity + 1)).fx))
+    }
   }
+
 
   implicit def double2expr(c: Double): CvxExpr =
     CvxExpr(Function.const(AVector.const(c, globalInputSize), globalInputSize, globalArgSize))
@@ -169,6 +173,10 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     }
   }
 
+  def in_positive_simplex(x: CvxExpr): CvxConstraint = {
+    val xi = CvxExpr(x.fx.promote).apply(IRPoly.param(x.size.arity, x.size.arity + 1))
+    CvxConstraint(Function.sumfor(x.size, positive_cone_ifx(xi).fx))
+  }
   def in_secondorder_cone(x: CvxExpr, z: CvxExpr): CvxConstraint = {
     if(z.size != IRPoly.const(1, x.size.arity)) throw new IRValidationException()
     CvxConstraint(secondorder_cone_ifx(x.size)(x, z).fx)
