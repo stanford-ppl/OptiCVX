@@ -206,34 +206,6 @@ case class AlmapNeg(val arg: Almap) extends Almap {
   override def toString: String = "neg(" + arg.toString + ")"
 }
 
-/*
-//Scale of a linear map by some indexing of the input space
-case class AlmapScaleInput(val arg: Almap, val scale: IRPoly) extends Almap {
-  val arity: Int = arg.arity
-  val domain: IRPoly = arg.domain
-  val codomain: IRPoly = arg.codomain
-
-  if (arity != scale.arity) throw new IRValidationException()
-  
-  def arityOp(op: ArityOp): Almap = AlmapScaleInput(arg.arityOp(op), scale.arityOp(op))
-  
-  def T: Almap = Tcheck(AlmapScaleInput(arg.T, scale)
- ) 
-  arityVerify()
-
-  def mmpy(x: AVector): AVector = mmpycheck(x) {
-    if(e.arity != this.arity) throw new IRValidationException()
-    val arity: Int = this.arity
-    if(size(x) != domain) throw new IRValidationException()
-    scaleinput(arg.mmpy(x), scale)
-  }
-
-  def is0: Boolean = arg.is0
-
-  def isPure: Boolean = false
-}
-*/
-
 //Scale of a linear map by a constant
 case class AlmapScaleConstant(val arg: Almap, val scale: Double) extends Almap {
   val arity: Int = arg.arity
@@ -401,37 +373,6 @@ case class AlmapVCatFor(val len: IRPoly, val body: Almap) extends Almap {
   override def toString: String = "vcatfor(" + len.toString + ": " + body.toString + ")"
 }
 
-/*
-// "Puts" the given almap at the target index, all other entries are 0
-case class AlmapVPut(val len: IRPoly, val at: IRPoly, val body: Almap) extends Almap {
-  val arity: Int = len.arity
-  val domain: IRPoly = body.domain.demote
-  val codomain: IRPoly = body.codomain.sum(arity).substituteAt(arity, len)
-
-  if (body.arity != (len.arity + 1)) throw new IRValidationException()
-  if (len.arity != at.arity) throw new IRValidationException()
-
-  def arityOp(op: ArityOp): Almap = AlmapVPut(len.arityOp(op), at.arityOp(op), body.arityOp(op))
-
-  def T: Almap = Tcheck(AlmapHPut(len, at, body.T))
-
-  arityVerify()
-
-  def mmpy(x: AVector): AVector = mmpycheck(x) {
-    if(e.arity != this.arity) throw new IRValidationException()
-    val arity: Int = this.arity
-    if(size(x) != domain) throw new IRValidationException()
-    zero(body.codomain.sum(arity).substituteAt(arity, at)) ++
-      body.substituteAt(arity, at).mmpy(x) ++
-        zero(body.codomain.sum(arity).substituteAt(arity, at + IRPoly.const(1, arity)))
-  }
-
-  def is0: Boolean = body.is0
-
-  def isPure: Boolean = body.isPure
-}
-*/
-
 //The horizontal concatenation of two linear maps
 case class AlmapHCat(val arg1: Almap, val arg2: Almap) extends Almap {
   val arity: Int = arg1.arity
@@ -526,39 +467,6 @@ case class AlmapHCatFor(val len: IRPoly, val body: Almap) extends Almap {
 
   override def toString: String = "hcatfor(" + len.toString + ": " + body.toString + ")"
 }
-
-/*
-// "Puts" the given almap at the target index, all other entries are 0
-case class AlmapHPut(val len: IRPoly, val at: IRPoly, val body: Almap) extends Almap {
-  val arity: Int = len.arity
-  val domain: IRPoly = body.domain.sum(arity).substituteAt(arity, len)
-  val codomain: IRPoly = body.codomain.demote
-
-  if (body.arity != (len.arity + 1)) throw new IRValidationException()
-  if (len.arity != at.arity) throw new IRValidationException()
-
-  def arityOp(op: ArityOp): Almap = AlmapHPut(len.arityOp(op), at.arityOp(op), body.arityOp(op))
-
-  def T: Almap = Tcheck(AlmapVPut(len, at, body.T))
-
-  arityVerify()
-
-  def mmpy(x: AVector): AVector = mmpycheck(x) {
-    if(e.arity != this.arity) throw new IRValidationException()
-    val arity: Int = this.arity
-    if(size(x) != domain) throw new IRValidationException()
-    body.substituteAt(arity, at).mmpy(
-      slice(
-        x, 
-        body.domain.sum(arity).substituteAt(arity, at),
-        body.domain.substituteAt(arity, at)))
-  }
-
-  def is0: Boolean = body.is0
-
-  def isPure: Boolean = body.isPure
-}
-*/
 
 //The horizontal concatenation of two linear maps
 case class AlmapDiagCat(val arg1: Almap, val arg2: Almap) extends Almap {
@@ -885,49 +793,3 @@ case class AlmapVectorT(val arg: AVector) extends Almap {
 
   override def toString: String = "vectorT(" + arg.toString + ")"
 }
-
-/*
-case class AVectorLikeAlmap(val input: InputDesc, val domain: IRPoly) extends AVectorLike[Almap] {
-  val arity: Int = domain.arity
-  if(input.arity != domain.arity) throw new IRValidationException()
-  def size(arg: Almap): IRPoly = arg.codomain
-  def zero(size: IRPoly): Almap = AlmapZero(input, domain, size)
-  def one: Almap = {
-    if(domain != IRPoly.const(1, domain.arity)) throw new IRValidationException()
-    AlmapIdentity(input, domain)
-  }
-  def sum(arg1: Almap, arg2: Almap): Almap = arg1 + arg2
-  def sumfor(len: IRPoly, arg: Almap): Almap = AlmapSumFor(len, arg)
-  def neg(arg: Almap): Almap = -arg
-  //def scaleinput(arg: Almap, scale: IRPoly): Almap = AlmapScaleInput(arg, scale)
-  def scaleconstant(arg: Almap, scale: Double): Almap = AlmapScaleConstant(arg, scale)
-  def cat(arg1: Almap, arg2: Almap): Almap = AlmapVCat(arg1, arg2)
-  def catfor(len: IRPoly, arg: Almap): Almap = AlmapVCatFor(len, arg)
-  def slice(arg: Almap, at: IRPoly, size: IRPoly): Almap = {
-    val almappfx = AlmapHCat(
-      AlmapHCat(
-        AlmapZero(input, at, size), 
-        AlmapIdentity(input, size)), 
-      AlmapZero(input, arg.codomain - (at + size), size))
-    AlmapProd(almappfx, arg)
-  }
-  def mmpyinput(arg: Almap, iidx: Int, sidx: Seq[IRPoly]): Almap = {
-    AlmapProd(AlmapInput(input, iidx, sidx), arg)
-  }
-  def mmpyinputtranspose(arg: Almap, iidx: Int, sidx: Seq[IRPoly]): Almap = {
-    AlmapProd(AlmapInputT(input, iidx, sidx), arg)
-  }
-  def read(iidx: Int, sidx: Seq[IRPoly]): Almap = {
-    AlmapVector(AVectorRead(input, iidx, sidx))
-  }
-  def dot(arg1: Almap, arg2: Almap): Almap = {
-    AlmapProd(arg1.T, arg2)
-  }
-  def mpy(arg: Almap, scale: Almap): Almap = {
-    AlmapProd(arg, scale)
-  }
-
-  def arityOp(op: ArityOp): AVectorLike[Almap] = AVectorLikeAlmap(input.arityOp(op), domain.arityOp(op))
-  def inputOp(op: InputOp): AVectorLike[Almap] = AVectorLikeAlmap(op.input, domain)
-}
-*/

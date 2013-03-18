@@ -48,19 +48,6 @@ trait Solver extends HasInput[Solver] {
   def run[I, M, N, V, W](runtime: SolverRuntime[I, M, N, V, W], params: Seq[I], inputs: Seq[N], memory: Seq[W]): Seq[W]
 }
 
-/*
-case class SolverContext(val input: InputDesc, val variables: Seq[IRPoly]) extends HasInput[SolverContext] {
-  val arity: Int = input.arity
-  
-  for(v <- variables) {
-    if(v.arity != arity) throw new IRValidationException()
-  }
-
-  def arityOp(op: ArityOp) = SolverContext(input.arityOp(op), variables map (v => v.arityOp(op)))
-  def inputOp(op: InputOp) = SolverContext(op.input, variables)
-}
-*/
-
 case class SolverNull(val input: InputDesc) extends Solver {
   val arity: Int = input.arity
 

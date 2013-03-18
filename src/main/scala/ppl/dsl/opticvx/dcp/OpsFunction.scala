@@ -7,49 +7,6 @@ import scala.collection.immutable.Set
 
 
 trait DCPOpsFunction extends DCPOpsExpr {
-  
-  /*
-    val square = {
-      val x = cvxexpr()
-      val t = cvxexpr()
-      cvxfun(
-        params(),
-        args(scalar -> x),
-        sign(positive),
-        tonicity(x.sign),
-        vexity(positive),
-        over(scalar -> t),
-        let(),
-        where(
-          in_secondorder_cone(cat(2*x, t-1), t+1)
-        ),
-        value(t)
-      )
-    }
-  */
-
-  /*
-    cvxfun0(() => args()
-
-    val square = {
-      val n = cvxfunparam()
-      val x = cvxfunexpr()
-      val t = cvxfunexpr()
-      cvxfun(
-        params(),
-        args(scalar -> x),
-        sign(positive),
-        tonicity(x.sign),
-        vexity(positive),
-        over(scalar -> t),
-        let(),
-        where(
-          in_secondorder_cone(cat(2*x, t-1), t+1)
-        ),
-        value(t)
-      )
-    }
-  */
 
   class CvxFunParams(val params: Seq[CvxParamSymbol])
 
@@ -198,24 +155,4 @@ trait DCPOpsFunction extends DCPOpsExpr {
 
     minfxn.chdcp(s_sign, s_tonicity, s_vexity)
   }
-
-  /*
-  val square = {
-    val x = cvxfunexpr()
-    val t = cvxfunexpr()
-    cvxfun(
-      params(),
-      args(scalar -> x),
-      sign(positive),
-      tonicity(x.sign),
-      vexity(positive),
-      over(scalar -> t),
-      let(),
-      where(
-        //in_secondorder_cone(cat(2*x, t-1), t+1)
-      ),
-      value(t)
-    )
-  }
-  */
 }
