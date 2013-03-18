@@ -58,8 +58,8 @@ object DCPOpsTestApp extends DCPOps {
       over(vector(N) -> x, vector(N) -> y), 
       let(),
       where(
-        x(0) >= 0.0,
-        cfor(N-1) {i => x(i + 1) >= x(i) + 1.0},
+        x(0) == 0.0,
+        cfor(N-1) {i => x(i + 1) == x(i) + 1.0},
         cfor(N) {i => y(i) >= square(x(i))}
       ),
       minimize(

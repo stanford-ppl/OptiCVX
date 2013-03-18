@@ -44,7 +44,7 @@ object PrimalDualOperatorSplitting extends SolverGenUtil {
     u := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize))
 
     converge(cond - 1e-3) {
-      z := Mproj.proj(x - u, 20)
+      z := Mproj.proj(x - u, -1)
       x := K.project(z + u)
       u := u + z - x
       cond := norm_inf(M*x + v)

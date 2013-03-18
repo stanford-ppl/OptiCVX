@@ -22,7 +22,7 @@ case class ConeNull(val arity: Int) extends Cone {
   def arityOp(op: ArityOp): Cone = ConeNull(op.arity)
 
   def project(x: AVector): AVector = {
-    if(x.size != 0) throw new IRValidationException()
+    if(x.size != IRPoly.const(0, arity)) throw new IRValidationException()
     x
   }
 

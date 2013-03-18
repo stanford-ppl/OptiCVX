@@ -128,6 +128,9 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
       if(!is_outerloop) {
         converge_iter_count += 1
       }
+      else {
+        //println(v(0))
+      }
       i += 1
     }
     if(is_outerloop) {
