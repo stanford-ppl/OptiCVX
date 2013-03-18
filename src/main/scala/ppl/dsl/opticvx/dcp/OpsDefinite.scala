@@ -120,10 +120,10 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
       converge_iter_count = 0
     }
     var i = 0
-    while(cond && (i != itermax)) {
+    while(cond && ((itermax == -1)||(i < itermax))) {
       val (nm, v) = body(m)
       if(v.length != 1) throw new IRValidationException()
-      cond = (v(0) >= 1e-3)
+      cond = (v(0) > 0.0)
       m = nm
       if(!is_outerloop) {
         converge_iter_count += 1

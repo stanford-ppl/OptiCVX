@@ -85,7 +85,7 @@ trait SolverGenUtil extends SolverGen {
       phibar := beta
       rhobar := alpha
 
-      converge(phibar) {
+      converge(phibar - 1e-3, itermax) {
         //solution phase
         betau := A*v - u*alpha
         beta := sqrt(norm2(betau))
