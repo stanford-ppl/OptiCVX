@@ -342,6 +342,7 @@ case class Function(
     // verify that the same number of arguments are given for both functions
     if(ys.length != argSize.length) throw new IRValidationException()
     for(i <- 0 until ys.length) {
+      if(ys(i).arity != arity) throw new IRValidationException()
       if(ys(i).input != input) throw new IRValidationException()
       if(ys(i).argSize.length != ys(0).argSize.length) throw new IRValidationException()
     }

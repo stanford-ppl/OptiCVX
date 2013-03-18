@@ -9,7 +9,15 @@ import scala.collection.immutable.Set
 trait DCPOpsExpr extends DCPOpsGlobal {
 
   class FunctionHack(fx: Function) {
-    def apply(exprs: CvxExpr*) = CvxExpr(fx.compose(Seq(exprs:_*) map (x => x.fx)))
+    def apply(exprs: CvxExpr*) = {
+      //this is a hack for zero-arity functions that promotes them to the target arity context automatically
+      if((fx.arity == 0)&&(exprs.length > 0)) {
+        CvxExpr(fx.promoteTo(exprs(0).fx.arity).compose(Seq(exprs:_*) map (x => x.fx)))
+      }
+      else {
+        CvxExpr(fx.compose(Seq(exprs:_*) map (x => x.fx)))
+      }
+    }
     def apply(params: IRPoly*) = new FunctionHack(fx.arityOp(ArityOp(params(0).arity, Seq(params:_*))))
   }
 
@@ -84,7 +92,7 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     def unary_-(): CvxExpr = CvxExpr(-fx)
     def size: IRPoly = fx.codomain
     def >=(y: CvxExpr): CvxConstraint =
-      CvxConstraint(positive_cone_ifx(this - y).fx)
+      CvxConstraint(positive_cone_ifx.promoteTo(fx.arity).apply(this - y).fx)
     def <=(y: CvxExpr): CvxConstraint = (y >= this)
     def ==(y: CvxExpr): CvxConstraint = {
       if(this.size != y.size) throw new IRValidationException()

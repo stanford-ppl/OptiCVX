@@ -45,7 +45,7 @@ object AlternatingProjections extends SolverGenUtil {
       hcat(-cm.T, -bm.T, -gm.T, zeros(F.codomain + 1, 1), -eye(1)))
     val K = cat(freecone(A.domain + A.codomain), cone.conj, cone, ConeNonNegative(cone.arity), ConeNonNegative(cone.arity))
     
-    val Mproj = new LSQRProject(M)
+    val Mproj = new LSQRProject(M, zeros(M.codomain))
 
     x := K.central_vector(A.input) //cat(zeros(varSize + affineCstrtSize + coneSize + coneSize), ones(2))
     y := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize + 2))

@@ -108,13 +108,14 @@ trait SolverGenUtil extends SolverGen {
     }
   }
 
-  class LSQRProject(val A: Almap) {
+  //projects onto Ax + b = 0
+  class LSQRProject(val A: Almap, val b: AVector) {
     private val lsqr = new LSQR(A)
 
     def proj(x: AVector): AVector = proj(x, -1)
 
     def proj(x: AVector, itermax: Int): AVector = {
-      x - lsqr.solve(A*x, itermax)
+      x - lsqr.solve(A*x + b, itermax)
     }
   }
 

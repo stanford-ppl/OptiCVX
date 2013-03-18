@@ -804,6 +804,39 @@ case class AVectorNorm2(val arg: AVector) extends AVector {
   }
 }
 
+//infinity norm
+case class AVectorNormInf(val arg: AVector) extends AVector {
+  val arity: Int = arg.arity
+  val size: IRPoly = IRPoly.const(1, arity)
+  val input: InputDesc = arg.input
+
+  arityVerify()
+
+  def arityOp(op: ArityOp): AVector = AVectorNormInf(arg.arityOp(op))
+  def inputOp(op: InputOp): AVector = AVectorNormInf(arg.inputOp(op))
+
+  // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = {
+  //   e.norm2(arg.translate)
+  // }
+
+  def is0: Boolean = false //arg.is0
+  def isPure: Boolean = arg.isPure
+
+  def eval[I, M, N, V, W](
+    runtime: SolverRuntime[I, M, N, V, W], 
+    params: Seq[I], 
+    inputs: Seq[N],
+    memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
+  {
+    runtime.norm_inf(arg.eval(runtime, params, inputs, memory))
+  }
+
+  def simplify: AVector = {
+    val sa = arg.simplify
+    AVectorNormInf(sa)
+  }
+}
+
 case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
   val arity: Int = arg1.arity
   val size: IRPoly = arg1.size

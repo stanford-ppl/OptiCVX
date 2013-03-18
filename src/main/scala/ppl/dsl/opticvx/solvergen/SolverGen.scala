@@ -93,6 +93,7 @@ trait SolverGen {
   def zeros(l: IRPoly): AVector = AVectorZero(input, l)
   def ones(l: IRPoly): AVector = AVectorCatFor(l, AVectorOne(input.promote))
   def norm2(arg: AVector) = AVectorNorm2(arg)
+  def norm_inf(arg: AVector) = AVectorNormInf(arg)
   def sqrt(arg: AVector) = AVectorSqrt(arg)
   def dot(arg1: AVector, arg2: AVector) = AVectorDot(arg1, arg2)
 

@@ -49,23 +49,25 @@ object DCPOpsTestApp extends DCPOps {
     println(y.resolve)
     */
 
+    val N: Int = 5
     val x = cvxexpr
     val y = cvxexpr
     val z = cvxexpr
     solve(
       params(), given(),
-      over(vector(3) -> x), 
+      over(vector(N) -> x, vector(N) -> y), 
       let(),
       where(
-        x(0) <= 0.0,
-        x(1) <= 1.0,
-        x(2) <= 2.0
+        x(0) >= 0.0,
+        cfor(N-1) {i => x(i + 1) >= x(i) + 1.0},
+        cfor(N) {i => y(i) >= square(x(i))}
       ),
-      maximize(
-        x.sum
+      minimize(
+        y.sum
       )
     )
-    println("x = " + x.resolve.toString)
+    println("x = " + x.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + y.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
 
     /* maybe:
 
