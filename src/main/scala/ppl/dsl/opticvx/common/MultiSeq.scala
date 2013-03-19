@@ -12,7 +12,7 @@ object MultiSeq {
   def apply[T](t: T): MultiSeq[T] = MultiSeqA0(t)
 }
 
-private case class MultiSeqA0[T](t: T) extends MultiSeq[T] {
+case class MultiSeqA0[T](t: T) extends MultiSeq[T] {
   def order: Int = 0
   def apply(at: Seq[Int]): T = {
     if(at != Seq()) throw new IRValidationException()
@@ -24,7 +24,7 @@ private case class MultiSeqA0[T](t: T) extends MultiSeq[T] {
   }
 }
 
-private case class MultiSeqN[T](o: Int, ar: Seq[MultiSeq[T]]) extends MultiSeq[T] {
+case class MultiSeqN[T](o: Int, ar: Seq[MultiSeq[T]]) extends MultiSeq[T] {
   for(a <- ar) {
     if(a.order != o - 1) throw new IRValidationException()
   }
