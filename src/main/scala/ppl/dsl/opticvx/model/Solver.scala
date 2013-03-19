@@ -40,6 +40,8 @@ trait SolverRuntime[I, M, N, V, W] {
   def vectorget(vecs: W, at: Seq[I]): V
   def vectorset(src: V, vecs: W, at: Seq[I]): W
 
+  def memoryalloc(dims: Seq[I], size: Seq[I] => I): W
+
   def converge(memory: Seq[W], itermax: Int, body: (Seq[W]) => (Seq[W], V)): Seq[W]
   def runfor(len: I, memory: Seq[W], body: (I, Seq[W]) => Seq[W]): Seq[W]
 }

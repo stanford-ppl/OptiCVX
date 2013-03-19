@@ -49,7 +49,7 @@ object DCPOpsTestApp extends DCPOps {
     println(y.resolve)
     */
 
-    val N: Int = 5
+    val N: Int = 7
     val x = cvxexpr
     val y = cvxexpr
     val z = cvxexpr
@@ -59,7 +59,7 @@ object DCPOpsTestApp extends DCPOps {
       let(),
       where(
         x(0) == 0.0,
-        cfor(N-1) {i => x(i + 1) == x(i) + 1.0},
+        cfor(N-1) {i => x(i + 1) == x(i) + 0.5},
         cfor(N) {i => y(i) >= square(x(i))}
       ),
       minimize(

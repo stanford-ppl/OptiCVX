@@ -1,4 +1,4 @@
 #! /bin/bash
 
-cd $0/../..
+cd `dirname $0`/..
 sbt 'run-main ppl.dsl.opticvx.common.test.IRPolyTestApp' 'run-main ppl.dsl.opticvx.common.test.SignumPolyTestApp'

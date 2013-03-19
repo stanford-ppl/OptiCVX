@@ -111,6 +111,13 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
     vecs.updated(at, src)
   }
 
+  //case class MemAllocDesc(val dims: Seq[I], val size: Seq[I] => I)
+  def memoryalloc(dims: Seq[Int], size: Seq[Int] => Int): MultiSeq[Seq[Double]] = {
+    for(d <- desc) {
+
+    }
+  }
+
   var converge_iter_count: Int = -1
   def converge(memory: Seq[MultiSeq[Seq[Double]]], itermax: Int, body: (Seq[MultiSeq[Seq[Double]]]) => (Seq[MultiSeq[Seq[Double]]], Seq[Double])): Seq[MultiSeq[Seq[Double]]] = {
     var m = memory
