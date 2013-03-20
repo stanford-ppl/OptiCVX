@@ -40,7 +40,7 @@ object PrimalDualSubgradient extends SolverGen {
     pvFxg := Fxg - cone.project(Fxg)
     pvy := y - cone.conj.project(y)
     J := norm2(cTxbTvgTy) + norm2(Axb) + norm2(ATvFTyc) + norm2(pvFxg) + norm2(pvy)
-    converge(J - 1e-3) {
+    converge(J - 1e-6) {
       GJx := c*cTxbTvgTy + A.T*Axb + F.T*pvFxg
       GJy := g*cTxbTvgTy + F*ATvFTyc + pvy
       GJv := b*cTxbTvgTy + A*ATvFTyc

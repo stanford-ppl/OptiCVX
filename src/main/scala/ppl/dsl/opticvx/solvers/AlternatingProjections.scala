@@ -52,7 +52,7 @@ object AlternatingProjections extends SolverGenUtil {
     p := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize + 2))
     q := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize + 2))
 
-    converge(sqrt(norm2(M*x))) {
+    converge(sqrt(norm2(M*x)) - 1e-3) {
       //converge(Mproj.residual) {
       //  y := Mproj.proj(y)
       //}

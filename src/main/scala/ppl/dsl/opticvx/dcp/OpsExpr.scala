@@ -215,7 +215,8 @@ trait DCPOpsExpr extends DCPOpsGlobal {
   class CvxExprSymbol {
     protected[dcp] var boundexpr: CvxExpr = null
     protected[dcp] var boundsign: SignumPoly = null
-    protected[dcp] var resolution: Seq[Double] = null
+    //protected[dcp] var resolution: Seq[Double] = null
+    protected[dcp] var resolution: AVector = null
     protected[dcp] def bindexpr(x: CvxExpr) {
       if(boundexpr != null) throw new IRValidationException()
       if(resolution != null) throw new IRValidationException()
@@ -233,7 +234,7 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       if(boundsign == null) throw new IRValidationException()
       boundsign = null
     }
-    protected[dcp] def rset(r: Seq[Double]) {
+    protected[dcp] def rset(r: AVector) {
       releaseexpr()
       if(resolution != null) throw new IRValidationException()
       resolution = r
@@ -242,10 +243,10 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       if(boundsign == null) throw new IRValidationException()
       boundsign
     }
-    def resolve: Seq[Double] = {
-      if(resolution == null) throw new IRValidationException()
-      resolution
-    }
+    //def resolve: Seq[Double] = {
+    //  if(resolution == null) throw new IRValidationException()
+    //  resolution
+    //}
   }
 
   implicit def cvxparamsym2val(sym: CvxParamSymbol): IRPoly = {

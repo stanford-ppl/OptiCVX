@@ -2,7 +2,8 @@ package ppl.dsl.opticvx.dcp
 
 import ppl.dsl.opticvx.common._
 import ppl.dsl.opticvx.model._
-import ppl.dsl.opticvx.solvers._
+import ppl.dsl.opticvx.solvers
+import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 import scala.collection.immutable.Set
 
@@ -10,25 +11,65 @@ import scala.collection.immutable.Set
 trait DCPOpsSolve extends DCPOpsFunction {
 
   class CvxSolveParams(val params: Seq[CvxSolveParamBinding])
-  class CvxSolveParamBinding(val binding: Int, val symbol: CvxParamSymbol)
+  class CvxSolveParamBinding(val symbol: CvxParamSymbol)
 
   class CvxSolveInputs(val inputs: Seq[CvxSolveInputBinding])
   class CvxSolveInputBinding(val argdesc: InputArgDesc, val symbol: CvxInputSymbol)
 
   def params(ps: CvxSolveParamBinding*): CvxSolveParams = new CvxSolveParams(Seq(ps:_*))
-  implicit def cvxsolveparambindingimpl(tpl: Tuple2[Int, CvxParamSymbol]): CvxSolveParamBinding =
-    new CvxSolveParamBinding(tpl._1, tpl._2)
+  implicit def cvxsolveparambindingimpl(sym: CvxParamSymbol): CvxSolveParamBinding =
+    new CvxSolveParamBinding(sym)
 
   def given(bs: CvxSolveInputBinding*): CvxSolveInputs = new CvxSolveInputs(Seq(bs:_*))
 
-  def solve(
+  val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
+  val PrimalDualSubgradient = ppl.dsl.opticvx.solvers.PrimalDualSubgradient
+  val AlternatingProjections = ppl.dsl.opticvx.solvers.AlternatingProjections
+
+  class CvxSProblem(val problem: Problem) {
+    def gen(generator: SolverGen): CvxSSolver = {
+      new CvxSSolver(generator.gen(problem))
+    }
+    def gen(): CvxSSolver = gen(PrimalDualOperatorSplitting)
+  }
+
+  class CvxSSolver(val solver: Solver) {
+    def solve_definite(pp: Int*): CvxSSolutionDefinite = {
+      if(pp.length != solver.arity) throw new IRValidationException()
+      val srt = SolverRuntimeDefinite
+      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, Seq(pp:_*))
+      val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, Seq(pp:_*), Seq(), mm)
+      new CvxSSolutionDefinite(Seq(pp:_*), vv(0))
+    }
+  }
+
+  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]]) {
+    def resolve(x: CvxExprSymbol): Seq[Double] = {
+      val srt = SolverRuntimeDefinite
+      x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))
+    }
+
+
+      // val syms = (s_over map (x => x.symbol)) ++ (s_let map (x => x.symbol))
+      // for(s <- syms) {
+      //   val x = s.boundexpr
+      //   val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
+      //   val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(tt.input.memory(0)))
+      //   val sv = AVectorSum(
+      //     msfx.valueOffset.addMemory(sinput.memory),
+      //     msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
+      //   s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
+      // }
+  }
+
+  def problem(
     ts_params: =>CvxSolveParams,
     ts_inputs: =>CvxSolveInputs,
     ts_over: =>CvxOver,
     ts_let: =>CvxLet,
     ts_where: =>CvxWhere,
     ts_value: =>CvxValue
-    ) =
+    ): CvxSProblem =
   {
     // bind the parameters
     val s_params: Seq[CvxSolveParamBinding] = ts_params.params
@@ -81,21 +122,22 @@ trait DCPOpsSolve extends DCPOpsFunction {
       minfxn.conicOffset,
       minfxn.conicCone)
 
-    val tt = PrimalDualOperatorSplitting.gen(problem)
-    val pp = s_params map (s => s.binding)
-    val srt = SolverRuntimeDefinite
-    val mm = for(m <- tt.input.memory) yield srt.memoryallocfrom(m, pp)
-    val vv = tt.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), mm)
+    /* rebind the functions */
     val syms = (s_over map (x => x.symbol)) ++ (s_let map (x => x.symbol))
     for(s <- syms) {
       val x = s.boundexpr
       val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
-      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(tt.input.memory(0)))
+      //s.releaseexpr()
+      //s.bindexpr(new CvxExpr(msfx))
+      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(MemoryArgDesc(Seq(), msfx.varSize)))
       val sv = AVectorSum(
         msfx.valueOffset.addMemory(sinput.memory),
         msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
-      s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
+      s.rset(sv)
+      //s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
     }
+
+    new CvxSProblem(problem)
   }
 
 }

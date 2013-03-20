@@ -51,10 +51,11 @@ object DCPOpsTestApp extends DCPOps {
     val x = cvxexpr
     val y = cvxexpr
     val z = cvxexpr
-    solve(
+    /* define the problem */
+    val prob = problem(
       /* here, we bind an integer to the parameter n */
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
-      params(5 -> n),
+      params(n),
       /* this problem has no inputs */
       given(),
       /* this problem has two optimization variables, x and y */
@@ -72,9 +73,13 @@ object DCPOpsTestApp extends DCPOps {
         y.sum
       )
     )
+    /* generate a solver */
+    val solver = prob.gen(PrimalDualOperatorSplitting)
+    /* solve the problem */
+    val soln = solver.solve_definite(5)
     /* print out the results */
-    println("x = " + x.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("y = " + y.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("z = " + z.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("z = " + soln.resolve(z).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
   }
 }
