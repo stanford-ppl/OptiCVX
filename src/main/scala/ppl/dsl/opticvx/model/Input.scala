@@ -21,7 +21,7 @@ case class InputArgDesc(val dims: Seq[IRPoly], val domain: IRPoly, val codomain:
 case class MemoryArgDesc(val dims: Seq[IRPoly], val size: IRPoly) extends HasArity[MemoryArgDesc] {
   val arity: Int = size.arity - dims.length
   for(i <- 0 until dims.length) {
-    if(dims(i).arity != arity - (dims.length - i)) throw new IRValidationException()
+    if(dims(i).arity != arity + i) throw new IRValidationException()
   }
 
   def arityOp(op: ArityOp): MemoryArgDesc = MemoryArgDesc(

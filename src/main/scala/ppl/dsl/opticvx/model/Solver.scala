@@ -40,11 +40,24 @@ trait SolverRuntime[I, M, N, V, W] {
   def vectorget(vecs: W, at: Seq[I]): V
   def vectorset(src: V, vecs: W, at: Seq[I]): W
 
-  def memoryallocfor(dims: I, ar: Int, body: I => W): W
+  def memoryallocfor(dim: I, ar: Int, body: I => W): W
   def memoryalloc(size: I): W
 
   def converge(memory: Seq[W], itermax: Int, body: (Seq[W]) => (Seq[W], V)): Seq[W]
   def runfor(len: I, memory: Seq[W], body: (I, Seq[W]) => Seq[W]): Seq[W]
+
+
+  def memoryallocfrom(m: MemoryArgDesc, pp: Seq[I]): W = memoryallocfrom(m, 0, pp)
+
+  private def memoryallocfrom(m: MemoryArgDesc, ar: Int, pp: Seq[I]): W = {
+    if(m.arity != pp.length) throw new IRValidationException()
+    if(m.dims.length == 0) {
+      memoryalloc(m.size.eval(pp)(intlikei))
+    }
+    else {
+      memoryallocfor(m.dims(0).eval(pp)(intlikei), ar + 1, (i) => memoryallocfrom(MemoryArgDesc(m.dims.drop(1), m.size), ar + 1, pp :+ i))
+    }
+  }
 }
 
 

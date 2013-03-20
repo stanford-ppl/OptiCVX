@@ -5,121 +5,76 @@ import ppl.dsl.opticvx.dcp._
 
 object DCPOpsTestApp extends DCPOps {
   
+  /* here, we define the square function */
   val square = {
-    val x = cvxexpr()
-    val t = cvxexpr()
+    /* first, we declare the symbols that are to be associated with this function */
+    /* this is necessary so that the scala typing works out */
+    val x = cvxexpr
+    val t = cvxexpr
+    /* next, define the function proper */
     cvxfun(
+      /* this function maps a scalar to a scalar, so it needs no parameters */
       params(),
+      /* similarly, this function takes no input */
       given(),
+      /* square(...) has a single argument, x */
       args(scalar -> x),
+      /* square(...) is always positive */
       sign(positive),
+      /* square(...) is increasing when x is positive and decreasing when x is negative */
+      /* so, its tonicity is simply the sign of x */
       tonicity(x.sign),
+      /* square(...) is convex */
       vexity(positive),
+      /* square(...) has one dependent variable, t */
       over(scalar -> t),
+      /* we bind no variables to expressions for this function */
+      /* this can be used for convenience in function definitions */
+      /* this can also be used to get the values of expressions when solving a problem */
       let(),
+      /* the only constraint is a single second-order-cone constraint */
       where(
         in_secondorder_cone(cat(2*x, t-1), t+1)
       ),
+      /* the objective (and output of the function) is to maximize t */
       maximize(t)
     )
   }
 
   def main(args: Array[String]) {
-    
-    /*
-    val x = cvxexpr()
-    val y = cvxexpr()
-    val v = cvxexpr()
-    val n = cvxparam()
-    solve(
-      params(4 -> n),
-      given(vector_input(n)((i) => i) -> v),
-      over(scalar -> x, vector(n) -> y),
-      let(),
-      where(
-        cfor(n)(i => y(i) >= v(i)),
-        in_secondorder_cone(cat(2*y(2), x-1), x+1)
-      ),
-      minimize(
-        x + sumfor(n)(i => y(i))
-      )
-    )
-    println(x.resolve)
-    println(v.resolve)
-    println(y.resolve)
-    */
 
-    val N: Int = 7
+    /* now, we solve a problem */
+    /* first, declare the symbols */
+    /* n is a integer input parameter */
+    val n = cvxparam
+    /* x and y are problem variables */
     val x = cvxexpr
     val y = cvxexpr
     val z = cvxexpr
     solve(
-      params(), given(),
-      over(vector(N) -> x, vector(N) -> y), 
-      let(),
+      /* here, we bind an integer to the parameter n */
+      /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
+      params(5 -> n),
+      /* this problem has no inputs */
+      given(),
+      /* this problem has two optimization variables, x and y */
+      over(vector(n) -> x, vector(n) -> y), 
+      /* we bind z to an expression */
+      let(2.0 * x -> z),
+      /* our constraints */
       where(
         x(0) == 0.0,
-        cfor(N-1) {i => x(i + 1) == x(i) + 0.5},
-        cfor(N) {i => y(i) >= square(x(i))}
+        cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
+        cfor(n) {i => y(i) >= square(x(i))}
       ),
+      /* the objective */
       minimize(
         y.sum
       )
     )
+    /* print out the results */
     println("x = " + x.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + y.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-
-    /* maybe:
-
-    trait MyProblem extends OptiCVXProblem {
-      trait params {
-        self: _params =>
-        val n = param()
-      }
-      trait given {
-        self: _given =>
-        val v = vector(n)
-      }
-      trait over {
-        self: _over =>
-        val x = scalar()
-        val y = vector(n)
-      }
-      trait let {
-        self: _let =>
-      }
-      def where(implicit e: _where) = {
-        import e._
-        for (i <- n) yield y(i) >= v(i)
-        in_secondorder_cone(cat(2*y(2), x-1), x+1)
-      }
-    }
-
-    */
-
-    /*
-    val n = cvxparam()
-    val l = cvxexpr()
-    val x = cvxexpr()
-    val y = cvxexpr()
-    val z = cvxexpr()
-    solve(
-      params(3 -> n),
-      given(double2inputdesc(3.4) -> l),
-      over(scalar -> x, vector(n) -> y),
-      let(x + x -> z),
-      where(
-        cfor(n)(i => (y(i) <= x)),
-        x >= 0
-      ),
-      minimize(
-        (sumfor(n)((i) => y(i))) - x
-      )
-    )
-    println(l.resolve)
-    println(x.resolve)
-    println(y.resolve)
-    println(z.resolve)
-    */
+    println("z = " + z.resolve.map(d => "%1.3f" format d).mkString("[", ", ", "]"))
   }
 }

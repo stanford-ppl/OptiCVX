@@ -83,11 +83,9 @@ trait DCPOpsSolve extends DCPOpsFunction {
 
     val tt = PrimalDualOperatorSplitting.gen(problem)
     val pp = s_params map (s => s.binding)
-    val mm = for(m <- tt.input.memory) yield {
-      if(m.dims.length != 0) throw new IRValidationException()
-      MultiSeq((for (i <- 0 until m.size.eval(pp)(IntLikeInt)) yield 0.0): Seq[Double])
-    }
-    val vv = tt.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](SolverRuntimeDefinite, pp, Seq(), mm)
+    val srt = SolverRuntimeDefinite
+    val mm = for(m <- tt.input.memory) yield srt.memoryallocfrom(m, pp)
+    val vv = tt.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), mm)
     val syms = (s_over map (x => x.symbol)) ++ (s_let map (x => x.symbol))
     for(s <- syms) {
       val x = s.boundexpr
@@ -96,7 +94,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val sv = AVectorSum(
         msfx.valueOffset.addMemory(sinput.memory),
         msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
-      s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](SolverRuntimeDefinite, pp, Seq(), Seq(vv(0))))
+      s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
     }
   }
 
