@@ -10,12 +10,11 @@ title: Overview
     <a href="http://ppl.stanford.edu/main/">Pervasive Parallelism Laboratory (PPL)</a>.
   </p>
   <p>
-    OptiCVX is designed on top of the Delite framework with many of the same principles
-    as are used in OptiML.  It allows for modeling convex programs using the same
+    OptiCVX is written in Scala.  It allows for modeling convex programs using the same
     philosophy as CVX, diciplined convex programming.  OptiCVX transforms the DSL
     program into a conic optimization program using convex program rewriting rules,
-    solves the program using a (optionally) parallel solver, and outputs the result
-    so that it can be used by the DSL program. This differs from the behavior of CVX
+    generates an (optionally) parallel solver, and gives the user the option to either
+    immediately run this solver or output the solver as code. This differs from the behavior of CVX
     in that the verification of convexity and the conversion into a conic problem
     are done only once, as staging time (similar to compile time).
   </p>

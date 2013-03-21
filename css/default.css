@@ -124,6 +124,10 @@ li.major {
   clear: both;
 }
 
+#footer a {
+  color: #808080;
+}
+
 #menu ol {
   list-style-type: none;
   padding: 0.3em 2em 1.3em 0;
