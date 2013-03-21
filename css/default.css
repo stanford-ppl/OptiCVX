@@ -24,11 +24,6 @@ img {
   border: none;
 }
 
-code {
-  font-family: "Monaco", "DejaVu Sans Mono", "Courier New", "monospace";
-  font-size: 10pt;
-}
-
 #warn {
   padding: 0.1em 0.5em 1.2em 0.5em;
   background-color: #993300;
