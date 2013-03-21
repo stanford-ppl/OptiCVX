@@ -4,8 +4,26 @@ title: Reference
 ---
 <section class="content">
   <h1 id='title_example'>Reference</h1>
-  <p>
-    Here, we describe the functions provided by the OptiCVX DSL.
+  <p> 
+    Table of Contents
+    <ul>
+      <li><a href="#symbols">Operations for declaring symbols</a></li>
+      <li><a href="#expressions">Operations on expressions</a></li>
+      <li><a href="#constraints">Operations for declaring constraints</a></li>
+      <li><a href="#optimization">Operations for optimization</a></li>
+      <li><a href="#functions">Operations for creating custom functions</a></li>
+      <li><a href="#dcp">Operations for analyzing DCP structure</a></li>
+    </ul>
   </p>
+  <h2><a name="symbols">Operations for declaring symbols</a></h2>
+    <p>Symbols come in two kinds: parameter symbols, which represent an integer size parameter
+      to the problem, and expression symbols, which represent a vector-valued OptiCVX expression.</p>
+{% highlight scala %}
+/* declare a parameter symbol n */
+val n = cvxparam
+/* declare an expression symbol x */
+val x = cvxexpr
+{% endhighlight %}
+    </p>
 
 </section>
