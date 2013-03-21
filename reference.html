@@ -8,8 +8,8 @@ title: Reference
     Table of Contents
     <ul>
       <li><a href="#symbols">Operations for declaring symbols</a></li>
-      <li><a href="#expressions">Operations on expressions</a></li>
-      <li><a href="#constraints">Operations for declaring constraints</a></li>
+      <li><a href="#params">Operations on integers</a></li>
+      <li><a href="#expressions">Affine operations on expressions</a></li>
       <li><a href="#optimization">Operations for optimization</a></li>
       <li><a href="#functions">Operations for creating custom functions</a></li>
       <li><a href="#dcp">Operations for analyzing DCP structure</a></li>
@@ -24,6 +24,59 @@ val n = cvxparam
 /* declare an expression symbol x */
 val x = cvxexpr
 {% endhighlight %}
+
+  <h2><a name="params">Operations on integers</a></h2>
+    <p>Integer patameters are bound to parameter symbols in a problem definition.  The following operations are supported
+      on integers within OptiCVX. (Note that integer here refers to an integer expression of the parameters, and so regular
+      Scala operations on integers are not supported.)
     </p>
+{% highlight scala %}
+/* an integer literal is an OptiCVX integer expression */
+2
+/* addition */
+n + m
+/* subtraction and negation */
+n - m
+-n
+/* multiplication */
+n * m
+/* division by an integer literal */
+/* note that this only works if there is no remainder from the division,
+   regardless of what parameters are passed at runtime */
+n / 2
+{% endhighlight %}
+
+  <h2><a name="expressions">Affine operations on expressions</a></h2>
+    <p>OptiCVX expressions can be bound to expression symbols in a problem definition.  The following affine operations are supported
+      on expressions within OptiCVX.
+    </p>
+{% highlight scala %}
+/* a double literal is an OptiCVX expression */
+3.0
+/* addition */
+x + y
+/* subtraction and negation */
+x - y
+-x
+/* multiplication and division by a constant */
+2.0 * x
+x / 5.0
+/* vector concatenation */
+cat(x, y)
+cat(u, v, w)
+/* vector indexing */
+x(at)
+x(at, length)
+/* get the length of a vector */
+x.size
+/* sum of all the elements of a vector */
+x.sum
+/* summation based on a parameter */
+/* the following example sums all the elements of vector x */
+sumfor(x.size)((i) => x(i))
+/* concatenation based on a parameter */
+/* the following example duplicates each element of vector x */
+catfor(x.size)((i) => cat(x(i), x(i)))
+{% endhighlight %}
 
 </section>
