@@ -9,7 +9,7 @@ title: Example
     To run this code, create a file named 'OpsTest.scala' in <code>src/main/scala/apps</code>
     and then compile and run it using <code>sbt 'run-main apps.DCPOpsTestApp'</code>.
   </p>
-  <span class="hll">
+  
 {% highlight scala %}
 package apps
 
@@ -55,7 +55,6 @@ object DCPOpsTestApp extends DCPOps {
   }
 
   def main(args: Array[String]) {
-
     /* now, we solve a problem */
     /* first, declare the symbols */
     /* n is a integer input parameter */
@@ -67,7 +66,8 @@ object DCPOpsTestApp extends DCPOps {
     /* define the problem */
     val prob = problem(
       /* here, we bind an integer to the parameter n */
-      /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
+      /* this just shows how parameters work */
+      /* we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
       given(),
@@ -97,5 +97,5 @@ object DCPOpsTestApp extends DCPOps {
   }
 }
 {% endhighlight %}
-  </span>
+
 </section>
