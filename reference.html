@@ -10,6 +10,7 @@ title: Reference
       <li><a href="#symbols">Operations for declaring symbols</a></li>
       <li><a href="#params">Operations on integers</a></li>
       <li><a href="#expressions">Affine operations on expressions</a></li>
+      <li><a href="#problems">Operations used to define problems</a></li>
     </ul>
   </p>
   <h2><a name="symbols">Operations for declaring symbols</a></h2>
@@ -74,6 +75,33 @@ sumfor(x.size)((i) => x(i))
 /* concatenation based on a parameter */
 /* the following example duplicates each element of vector x */
 catfor(x.size)((i) => cat(x(i), x(i)))
+{% endhighlight %}
+
+  <h2><a name="problems">Operations used to define problems</a></h2>
+    <p>A problem is an OptiCVX object that represents a convex problem.  The code below defines a convex
+      problem <code>prob</code>.
+    </p>
+{% highlight scala %}
+val prob = problem(
+  /* define the input parameters to the problem, as a list of parameter symbols */
+  params(n, m, p, ...),
+  /* here is where floating-point inputs would be declared (not well supported yet) */
+  given(),
+  /* define the problem variables, as a list of shape -> symbol pairs */
+  over(x_shape -> x, y_shape -> y, ...), 
+  /* here we can bind symbols to expressions of the previous variables */
+  let(z_expr -> z, ...),
+  /* constraints for the problem */
+  where(
+    constraint_1,
+    constraint_2,
+    ...
+  ),
+  /* the objective */
+  minimize(
+    objective_expr
+  )
+)
 {% endhighlight %}
 
 </section>
