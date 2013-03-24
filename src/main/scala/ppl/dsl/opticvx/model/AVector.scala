@@ -99,7 +99,10 @@ case class AVectorOne(val input: InputDesc) extends AVector {
   val arity: Int = input.arity
   val size: IRPoly = IRPoly.const(1, arity)
   arityVerify()
-  def arityOp(op: ArityOp): AVector = AVectorOne(input.arityOp(op))
+  def arityOp(op: ArityOp): AVector = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    AVectorOne(input.arityOp(op))
+  }
   def inputOp(op: InputOp): AVector = AVectorOne(op.input)
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
   //   e.one
@@ -132,7 +135,10 @@ case class AVectorSum(val arg1: AVector, val arg2: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorSum(arg1.arityOp(op), arg2.arityOp(op))
+  def arityOp(op: ArityOp): AVector = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    AVectorSum(arg1.arityOp(op), arg2.arityOp(op))
+  }
   def inputOp(op: InputOp): AVector = AVectorSum(arg1.inputOp(op), arg2.inputOp(op))
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
@@ -329,7 +335,10 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorCatFor(len.arityOp(op), arg.arityOp(op.promote))
+  def arityOp(op: ArityOp): AVector = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    AVectorCatFor(len.arityOp(op), arg.arityOp(op.leftPromote))
+  }
   def inputOp(op: InputOp): AVector = AVectorCatFor(len, arg.inputOp(op.promote))
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
@@ -376,7 +385,10 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorSlice(arg.arityOp(op), at.arityOp(op), size.arityOp(op))
+  def arityOp(op: ArityOp): AVector = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    AVectorSlice(arg.arityOp(op), at.arityOp(op), size.arityOp(op))
+  }
   def inputOp(op: InputOp): AVector = AVectorSlice(arg.inputOp(op), at, size)
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
@@ -423,7 +435,7 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorSumFor(len.arityOp(op), arg.arityOp(op.promote))
+  def arityOp(op: ArityOp): AVector = AVectorSumFor(len.arityOp(op), arg.arityOp(op.leftPromote))
   def inputOp(op: InputOp): AVector = AVectorSumFor(len, arg.inputOp(op.promote))
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {

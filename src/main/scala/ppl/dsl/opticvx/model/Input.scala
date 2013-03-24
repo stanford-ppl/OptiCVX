@@ -12,10 +12,13 @@ case class InputArgDesc(val dims: Seq[IRPoly], val domain: IRPoly, val codomain:
     if(dims(i).arity != arity - (dims.length - i)) throw new IRValidationException()
   }
 
-  def arityOp(op: ArityOp): InputArgDesc = InputArgDesc(
-    for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
-    domain.arityOp(op.promoteBy(dims.length)),
-    codomain.arityOp(op.promoteBy(dims.length)))
+  def arityOp(op: ArityOp): InputArgDesc = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    InputArgDesc(
+      for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
+      domain.arityOp(op.promoteBy(dims.length)),
+      codomain.arityOp(op.promoteBy(dims.length)))
+  }
 }
 
 case class MemoryArgDesc(val dims: Seq[IRPoly], val size: IRPoly) extends HasArity[MemoryArgDesc] {
@@ -37,7 +40,10 @@ case class InputDesc(val arity: Int, val args: Seq[InputArgDesc], val memory: Se
     if(m.arity != arity) throw new IRValidationException()
   }
 
-  def arityOp(op: ArityOp): InputDesc = InputDesc(op.arity, args map (a => a.arityOp(op)), memory map (a => a.arityOp(op)))
+  def arityOp(op: ArityOp): InputDesc = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    InputDesc(op.arity, args map (a => a.arityOp(op)), memory map (a => a.arityOp(op)))
+  }
 }
 
 case class InputOp(val input: InputDesc, val xs: Seq[Almap], val ms: Seq[AVector]) extends HasInput[InputOp] {

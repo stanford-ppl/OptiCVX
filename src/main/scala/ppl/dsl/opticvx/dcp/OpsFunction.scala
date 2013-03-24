@@ -8,10 +8,10 @@ import scala.collection.immutable.Set
 
 trait DCPOpsFunction extends DCPOpsExpr {
 
-  class CvxFunParams(val params: Seq[CvxParamSymbol])
+  class CvxParams(val params: Seq[CvxParamSymbol])
 
-  class CvxFunInputs(val inputs: Seq[CvxFunInputBinding])
-  class CvxFunInputBinding(val argdesc: InputArgDesc, val symbol: CvxInputSymbol)
+  class CvxInputs(val inputs: Seq[CvxInputBinding])
+  class CvxInputBinding(val argdesc: InputArgDesc, val symbol: CvxInputSymbol)
 
   class CvxArgs(val args: Seq[CvxArgBinding])
   class CvxArgBinding(val size: IRPoly, val symbol: CvxExprSymbol)
@@ -34,9 +34,11 @@ trait DCPOpsFunction extends DCPOpsExpr {
   class CvxMinimize(val expr: CvxExpr) extends CvxValue
   class CvxMaximize(val expr: CvxExpr) extends CvxValue
 
-  def params(ps: CvxParamSymbol*): CvxFunParams = new CvxFunParams(Seq(ps:_*))
+  def params(ps: CvxParamSymbol*): CvxParams = new CvxParams(Seq(ps:_*))
 
-  def given(bs: CvxFunInputBinding*): CvxFunInputs = new CvxFunInputs(Seq(bs:_*))
+  def given(bs: CvxInputBinding*): CvxInputs = new CvxInputs(Seq(bs:_*))
+  implicit def inputbindingimpl(tpl: Tuple2[InputArgDesc, CvxInputSymbol]): CvxInputBinding = 
+    new CvxInputBinding(tpl._1, tpl._2)
 
   def args(as: CvxArgBinding*): CvxArgs = new CvxArgs(Seq(as:_*))
   implicit def argbindingimpl(tpl: Tuple2[IRPoly, CvxExprSymbol]): CvxArgBinding =
@@ -86,8 +88,8 @@ trait DCPOpsFunction extends DCPOpsExpr {
     double2cvxfunexprimpl(i.toDouble)
 
   def cvxfun(
-    ts_params: =>CvxFunParams,
-    ts_inputs: =>CvxFunInputs,
+    ts_params: =>CvxParams,
+    ts_inputs: =>CvxInputs,
     ts_args: =>CvxArgs,
     ts_sign: =>CvxSign,
     ts_tonicity: =>CvxTonicity,
@@ -105,7 +107,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
     }
     globalArity = s_params.length
     // bind the inputs
-    val s_inputs: Seq[CvxFunInputBinding] = ts_inputs.inputs
+    val s_inputs: Seq[CvxInputBinding] = ts_inputs.inputs
     val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
     globalInputSize = s_inputsize
     for(i <- 0 until s_inputs.length) {

@@ -206,7 +206,10 @@ sealed trait IRPoly extends HasArity[IRPoly] {
   def next: IRPoly = IRPoly.param(arity, arity+1)
 
   // arity ops
-  def arityOp(op: ArityOp): IRPoly = eval[IRPoly](op.xs)(new IntLikeIRPoly(op.arity))
+  def arityOp(op: ArityOp): IRPoly = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    eval[IRPoly](op.xs)(new IntLikeIRPoly(op.arity))
+  }
 
   // pretty print methods
   def toString(varnames: Seq[String]): String

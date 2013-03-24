@@ -175,7 +175,7 @@ case class Function(
   val conicArgAlmap: Seq[Almap],
   val conicVarAlmap: Almap,
   val conicOffset: AVector,
-  val conicCone: Cone) extends HasArity[Function]
+  val conicCone: Cone) extends HasInput[Function]
 {
   val arity: Int = input.arity
   val codomain: IRPoly = valueOffset.size
@@ -257,6 +257,25 @@ case class Function(
     conicVarAlmap.arityOp(op),
     conicOffset.arityOp(op),
     conicCone.arityOp(op))
+
+  def inputOp(op: InputOp): Function = Function(
+    op.input,
+    argSize,
+    sign,
+    tonicity,
+    vexity,
+    varSize,
+    valueArgAlmap map (x => x.inputOp(op)),
+    valueVarAlmap.inputOp(op),
+    valueOffset.inputOp(op),
+    affineArgAlmap map (x => x.inputOp(op)),
+    affineVarAlmap.inputOp(op),
+    affineOffset.inputOp(op),
+    conicArgAlmap map (x => x.inputOp(op)),
+    conicVarAlmap.inputOp(op),
+    conicOffset.inputOp(op),
+    conicCone)
+
 
   // is this function input-invariant?
   def isPure: Boolean = 

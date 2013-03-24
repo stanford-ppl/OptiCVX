@@ -9,14 +9,19 @@ import scala.collection.immutable.Set
 trait DCPOpsExpr extends DCPOpsGlobal {
 
   class FunctionHack(fx: Function) {
+    if(fx.input.memory != Seq()) throw new IRValidationException()
     def apply(exprs: CvxExpr*) = {
+      var lfx: Function = fx
       //this is a hack for zero-arity functions that promotes them to the target arity context automatically
-      if((fx.arity == 0)&&(exprs.length > 0)) {
-        CvxExpr(fx.promoteTo(exprs(0).fx.arity).compose(Seq(exprs:_*) map (x => x.fx)))
+      if((lfx.arity == 0)&&(exprs.length > 0)) {
+        lfx = lfx.promoteTo(exprs(0).fx.arity)
       }
-      else {
-        CvxExpr(fx.compose(Seq(exprs:_*) map (x => x.fx)))
+      //this is a similar hack for zero-input functions
+      if((lfx.input.args == Seq())&&(exprs.length > 0)) {
+        val op = InputOp(exprs(0).fx.input, Seq(), Seq())
+        lfx = lfx.inputOp(op)
       }
+      CvxExpr(lfx.compose(Seq(exprs:_*) map (x => x.fx)))
     }
     def apply(params: IRPoly*) = new FunctionHack(fx.arityOp(ArityOp(params(0).arity, Seq(params:_*))))
   }
@@ -84,7 +89,13 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     )
   }
 
-  case class CvxInput(val idx: Int)
+  case class CvxInput(val idx: Int) {
+    def *(x: CvxExpr): CvxExpr = {
+      
+    }
+  }
+
+  implicit def cvxinput2expr(a: CvxInput): CvxExpr = a * double2expr(1.0)
 
   case class CvxExpr(val fx: Function) {
     def +(y: CvxExpr): CvxExpr = CvxExpr(fx + y.fx)
@@ -127,7 +138,6 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       CvxExpr(Function.sumfor(size, CvxExpr(fx.promote).apply(IRPoly.param(size.arity, size.arity + 1)).fx))
     }
   }
-
 
   implicit def double2expr(c: Double): CvxExpr =
     CvxExpr(Function.const(AVector.const(c, globalInputSize), globalInputSize, globalArgSize))

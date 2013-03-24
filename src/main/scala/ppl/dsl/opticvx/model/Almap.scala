@@ -344,7 +344,7 @@ case class AlmapVCatFor(val len: IRPoly, val body: Almap) extends Almap {
 
   if (body.arity != (len.arity + 1)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): Almap = AlmapVCatFor(len.arityOp(op), body.arityOp(op.promote))
+  def arityOp(op: ArityOp): Almap = AlmapVCatFor(len.arityOp(op), body.arityOp(op.leftPromote))
   def inputOp(op: InputOp): Almap = AlmapVCatFor(len, body.inputOp(op.promote))
 
   def T: Almap = Tcheck(AlmapHCatFor(len, body.T)
@@ -432,7 +432,7 @@ case class AlmapHCatFor(val len: IRPoly, val body: Almap) extends Almap {
 
   if (body.arity != (len.arity + 1)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): Almap = AlmapHCatFor(len.arityOp(op), body.arityOp(op.promote))
+  def arityOp(op: ArityOp): Almap = AlmapHCatFor(len.arityOp(op), body.arityOp(op.leftPromote))
   def inputOp(op: InputOp): Almap = AlmapHCatFor(len, body.inputOp(op.promote))
 
   def T: Almap = Tcheck(AlmapVCatFor(len, body.T))
@@ -527,7 +527,7 @@ case class AlmapDiagCatFor(val len: IRPoly, val body: Almap) extends Almap {
 
   if (body.arity != (len.arity + 1)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): Almap = AlmapDiagCatFor(len.arityOp(op), body.arityOp(op.promote))
+  def arityOp(op: ArityOp): Almap = AlmapDiagCatFor(len.arityOp(op), body.arityOp(op.leftPromote))
   def inputOp(op: InputOp): Almap = AlmapDiagCatFor(len, body.inputOp(op.promote))
 
   def T: Almap = Tcheck(AlmapDiagCatFor(len, body.T))
@@ -577,7 +577,7 @@ case class AlmapSumFor(val len: IRPoly, val body: Almap) extends Almap {
 
   if (body.arity != (len.arity + 1)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): Almap = AlmapSumFor(len.arityOp(op), body.arityOp(op.promote))
+  def arityOp(op: ArityOp): Almap = AlmapSumFor(len.arityOp(op), body.arityOp(op.leftPromote))
   def inputOp(op: InputOp): Almap = AlmapSumFor(len, body.inputOp(op.promote))
 
   def T: Almap = Tcheck(AlmapSumFor(len, body.T))

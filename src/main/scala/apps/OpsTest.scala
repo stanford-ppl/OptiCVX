@@ -47,6 +47,8 @@ object DCPOpsTestApp extends DCPOps {
     /* first, declare the symbols */
     /* n is a integer input parameter */
     val n = cvxparam
+    /* a is an input */
+    val a = cvxinput
     /* x and y are problem variables */
     val x = cvxexpr
     val y = cvxexpr
@@ -57,7 +59,7 @@ object DCPOpsTestApp extends DCPOps {
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
-      given(),
+      given(inputscalar -> a),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
       /* we bind z to an expression */

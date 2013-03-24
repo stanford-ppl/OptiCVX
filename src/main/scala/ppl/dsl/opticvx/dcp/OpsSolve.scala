@@ -10,17 +10,19 @@ import scala.collection.immutable.Set
 
 trait DCPOpsSolve extends DCPOpsFunction {
 
-  class CvxSolveParams(val params: Seq[CvxSolveParamBinding])
-  class CvxSolveParamBinding(val symbol: CvxParamSymbol)
+  def inputscalar: InputArgDesc = 
+    InputArgDesc(Seq(), IRPoly.const(1, globalArity), IRPoly.const(1, globalArity))
 
-  class CvxSolveInputs(val inputs: Seq[CvxSolveInputBinding])
-  class CvxSolveInputBinding(val argdesc: InputArgDesc, val symbol: CvxInputSymbol)
+  def inputvector(n: IRPoly): InputArgDesc = {
+    if(n.arity != globalArity) throw new IRValidationException()
+    InputArgDesc(Seq(), IRPoly.const(1, globalArity), n)
+  }
 
-  def params(ps: CvxSolveParamBinding*): CvxSolveParams = new CvxSolveParams(Seq(ps:_*))
-  implicit def cvxsolveparambindingimpl(sym: CvxParamSymbol): CvxSolveParamBinding =
-    new CvxSolveParamBinding(sym)
-
-  def given(bs: CvxSolveInputBinding*): CvxSolveInputs = new CvxSolveInputs(Seq(bs:_*))
+  def inputmatrix(m: IRPoly, n: IRPoly): InputArgDesc = {
+    if(m.arity != globalArity) throw new IRValidationException()
+    if(n.arity != globalArity) throw new IRValidationException()
+    InputArgDesc(Seq(), m, n)
+  }
 
   val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
   val PrimalDualSubgradient = ppl.dsl.opticvx.solvers.PrimalDualSubgradient
@@ -63,8 +65,8 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   def problem(
-    ts_params: =>CvxSolveParams,
-    ts_inputs: =>CvxSolveInputs,
+    ts_params: =>CvxParams,
+    ts_inputs: =>CvxInputs,
     ts_over: =>CvxOver,
     ts_let: =>CvxLet,
     ts_where: =>CvxWhere,
@@ -72,13 +74,13 @@ trait DCPOpsSolve extends DCPOpsFunction {
     ): CvxSProblem =
   {
     // bind the parameters
-    val s_params: Seq[CvxSolveParamBinding] = ts_params.params
+    val s_params: Seq[CvxParamSymbol] = ts_params.params
     for(i <- 0 until s_params.length) {
-      s_params(i).symbol.bind(IRPoly.param(i, s_params.length))
+      s_params(i).bind(IRPoly.param(i, s_params.length))
     }
     globalArity = s_params.length
     // bind the inputs
-    val s_inputs: Seq[CvxSolveInputBinding] = ts_inputs.inputs
+    val s_inputs: Seq[CvxInputBinding] = ts_inputs.inputs
     val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
     globalInputSize = s_inputsize
     for(i <- 0 until s_inputs.length) {
