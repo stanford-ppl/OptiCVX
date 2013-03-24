@@ -36,13 +36,20 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   class CvxSSolver(val solver: Solver) {
-    def solve_definite(pp: Int*): CvxSSolutionDefinite = {
+    def solve_definite(pp: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
       if(pp.length != solver.arity) throw new IRValidationException()
+      if(ins.length != solver.input.args.length) throw new IRValidationException()
+      val spp: Seq[Int] = Seq(pp:_*)
       val srt = SolverRuntimeDefinite
-      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, Seq(pp:_*))
-      val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, Seq(pp:_*), Seq(), mm)
-      new CvxSSolutionDefinite(Seq(pp:_*), vv(0))
+      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
+      val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
+      new CvxSSolutionDefinite(spp, vv(0))
     }
+  }
+
+  def inputscalardefinite(a: Double): MultiSeq[MatrixDefinite] = {
+    val amd = MatrixDefinite(1, 1, Seq(a))
+    MultiSeqA0(amd)
   }
 
   class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]]) {

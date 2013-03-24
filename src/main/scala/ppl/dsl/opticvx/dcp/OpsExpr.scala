@@ -91,11 +91,30 @@ trait DCPOpsExpr extends DCPOpsGlobal {
 
   case class CvxInput(val idx: Int) {
     def *(x: CvxExpr): CvxExpr = {
-      
+      val a: Almap = AlmapInput(globalInputSize, idx, Seq())
+      CvxExpr(Function(
+        x.fx.input,
+        x.fx.argSize,
+        x.fx.sign * Signum.All,
+        x.fx.tonicity map (t => t * Signum.All),
+        x.fx.vexity * Signum.All,
+        x.fx.varSize,
+        x.fx.valueArgAlmap map (x => a * x),
+        a * x.fx.valueVarAlmap,
+        a * x.fx.valueOffset,
+        x.fx.affineArgAlmap,
+        x.fx.affineVarAlmap,
+        x.fx.affineOffset,
+        x.fx.conicArgAlmap,
+        x.fx.conicVarAlmap,
+        x.fx.conicOffset,
+        x.fx.conicCone))
     }
   }
 
   implicit def cvxinput2expr(a: CvxInput): CvxExpr = a * double2expr(1.0)
+
+  implicit def cvxinputsym2expr(a: CvxInputSymbol): CvxExpr = cvxinput2expr(cvxinputsym2val(a))
 
   case class CvxExpr(val fx: Function) {
     def +(y: CvxExpr): CvxExpr = CvxExpr(fx + y.fx)

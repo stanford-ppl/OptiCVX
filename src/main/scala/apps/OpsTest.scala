@@ -66,7 +66,7 @@ object DCPOpsTestApp extends DCPOps {
       let(2.0 * x -> z),
       /* our constraints */
       where(
-        x(0) == 0.0,
+        x(0) == a,
         cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
         cfor(n) {i => y(i) >= square(x(i))}
       ),
@@ -78,7 +78,7 @@ object DCPOpsTestApp extends DCPOps {
     /* generate a solver */
     val solver = prob.gen(PrimalDualOperatorSplitting)
     /* solve the problem */
-    val soln = solver.solve_definite(5)
+    val soln = solver.solve_definite(5)(inputscalardefinite(2.0))
     /* print out the results */
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))

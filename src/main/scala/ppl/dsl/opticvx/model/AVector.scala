@@ -488,7 +488,7 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
     for(i <- 0 until input.args.length) {
       if(op.xs(i).arity != input.args(i).domain.arity) throw new IRValidationException()
     }
-    op.xs(iidx).substituteSeq(sidx).mmpy(arg)
+    op.xs(iidx).substituteSeq(sidx).mmpy(arg.inputOp(op))
   }
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
@@ -537,7 +537,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
     for(i <- 0 until input.args.length) {
       if(op.xs(i).arity != input.args(i).arity) throw new IRValidationException()
     }
-    op.xs(iidx).substituteSeq(sidx).T.mmpy(arg)
+    op.xs(iidx).substituteSeq(sidx).T.mmpy(arg.inputOp(op))
   }
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
