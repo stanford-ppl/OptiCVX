@@ -66,19 +66,18 @@ object DCPOpsTestApp extends DCPOps {
       let(2.0 * x -> z),
       /* our constraints */
       where(
-        cfor(n) {i => x(i) == a(i)},
-        //cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
-        cfor(n) {i => y(i) >= square(x(i))}
+        cfor(n) {i => square(x(i)) <= a(i)},
+        cfor(n) {i => y(i) >= square(a(i))}
       ),
       /* the objective */
       minimize(
-        y.sum
+        y.sum - x.sum
       )
     )
     /* generate a solver */
     val solver = prob.gen(PrimalDualOperatorSplitting)
     /* solve the problem */
-    val soln = solver.solve_definite(5)(inputvectordefinite(Seq(-1.0, 1.0, 0.0, 2.0, -2.0)))
+    val soln = solver.solve_definite(5)(inputvectordefinite(Seq(1.0, 2.0, 3.0, 4.0, 5.0)))
     /* print out the results */
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
