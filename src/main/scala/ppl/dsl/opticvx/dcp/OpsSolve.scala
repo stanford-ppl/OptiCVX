@@ -52,6 +52,11 @@ trait DCPOpsSolve extends DCPOpsFunction {
     MultiSeqA0(amd)
   }
 
+  def inputvectordefinite(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
+    val amd = MatrixDefinite(as.length, 1, as)
+    MultiSeqA0(amd)
+  }
+
   class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]]) {
     def resolve(x: CvxExprSymbol): Seq[Double] = {
       val srt = SolverRuntimeDefinite

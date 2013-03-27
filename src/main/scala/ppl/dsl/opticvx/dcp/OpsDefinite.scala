@@ -7,7 +7,7 @@ import scala.collection.immutable.Set
 
 import ppl.dsl.opticvx.solvers._
 
-
+// TODO: MatrixDefinite class has opposite domain/codomain order from other classes
 case class MatrixDefinite(m: Int, n: Int, data: Seq[Double]) {
   if(data.length != m*n) throw new IRValidationException()
   def getat(i: Int, j: Int): Double = {
@@ -15,12 +15,14 @@ case class MatrixDefinite(m: Int, n: Int, data: Seq[Double]) {
     data(i + m*j)
   }
   def mmpy(x: Seq[Double]) = {
+    if(x.length != n) throw new IRValidationException()
     for (i <- 0 until m) yield {
-      (0 until m).foldLeft(0.0)((a, j) => a + getat(i, j)*x(j))
+      (0 until n).foldLeft(0.0)((a, j) => a + getat(i, j)*x(j))
     }
   }
   def mmpyT(x: Seq[Double]) = {
-    for (i <- 0 until m) yield {
+    if(x.length != m) throw new IRValidationException()
+    for (i <- 0 until n) yield {
       (0 until m).foldLeft(0.0)((a, j) => a + getat(j, i)*x(j))
     }
   }

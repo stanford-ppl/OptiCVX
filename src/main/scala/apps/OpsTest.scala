@@ -59,15 +59,15 @@ object DCPOpsTestApp extends DCPOps {
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
-      given(inputscalar -> a),
+      given(inputvector(n) -> a),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
       /* we bind z to an expression */
       let(2.0 * x -> z),
       /* our constraints */
       where(
-        x(0) == a,
-        cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
+        cfor(n) {i => x(i) == a(i)},
+        //cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
         cfor(n) {i => y(i) >= square(x(i))}
       ),
       /* the objective */
@@ -78,7 +78,7 @@ object DCPOpsTestApp extends DCPOps {
     /* generate a solver */
     val solver = prob.gen(PrimalDualOperatorSplitting)
     /* solve the problem */
-    val soln = solver.solve_definite(5)(inputscalardefinite(2.0))
+    val soln = solver.solve_definite(5)(inputvectordefinite(Seq(-1.0, 1.0, 0.0, 2.0, -2.0)))
     /* print out the results */
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
