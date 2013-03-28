@@ -19,7 +19,7 @@ trait SolverRuntime[I, M, N, V, W] {
   def neg(arg: V): V
   def scaleconstant(arg: V, scale: Double): V
   def cat(arg1: V, arg2: V): V
-  def catfor(len: I, arg: (I => V)): V
+  def catfor(len: I, size: I, arg: (I => V)): V
   def slice(arg: V, at: I, size: I): V
   //nonlinear operators
   def dot(arg1: V, arg2: V): V

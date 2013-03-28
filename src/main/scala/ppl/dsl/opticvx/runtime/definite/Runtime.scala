@@ -58,7 +58,7 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
   def cat(arg1: Seq[Double], arg2: Seq[Double]): Seq[Double] = {
     arg1 ++ arg2
   }
-  def catfor(len: Int, arg: (Int => Seq[Double])): Seq[Double] = {
+  def catfor(len: Int, size: Int, arg: (Int => Seq[Double])): Seq[Double] = {
     var rv: Seq[Double] = Seq()
     for(j <- 0 until len) {
       rv = rv ++ arg(j)

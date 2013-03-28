@@ -356,6 +356,7 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
   {
     runtime.catfor(
       len.eval(params)(runtime.intlikei),
+      size.eval(params)(runtime.intlikei),
       (i => arg.eval(runtime, params :+ i, inputs, memory)))
   }
 
