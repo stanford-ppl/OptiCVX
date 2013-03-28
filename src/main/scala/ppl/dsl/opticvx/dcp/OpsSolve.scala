@@ -4,6 +4,7 @@ import ppl.dsl.opticvx.common._
 import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvers
 import ppl.dsl.opticvx.solvergen._
+import ppl.dsl.opticvx.runtime.definite._
 import scala.collection.immutable.Seq
 import scala.collection.immutable.Set
 

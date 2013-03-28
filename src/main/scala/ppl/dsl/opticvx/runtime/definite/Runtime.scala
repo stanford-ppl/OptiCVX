@@ -1,9 +1,8 @@
-package ppl.dsl.opticvx.dcp
+package ppl.dsl.opticvx.runtime.definite
 
 import ppl.dsl.opticvx.common._
 import ppl.dsl.opticvx.model._
 import scala.collection.immutable.Seq
-import scala.collection.immutable.Set
 
 import ppl.dsl.opticvx.solvers._
 
