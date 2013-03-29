@@ -597,7 +597,7 @@ case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.vectorget(memory(iidx), sidx map (s => s.eval(params)(runtime.intlikei)))
+    runtime.vectorget(memory(iidx), input.memory(iidx).size.substituteSeq(sidx).eval(params)(runtime.intlikei), sidx map (s => s.eval(params)(runtime.intlikei)))
   }
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = {

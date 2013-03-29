@@ -106,7 +106,7 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
 
   def matrixget(mats: MultiSeq[MatrixDefinite], at: Seq[Int]): MatrixDefinite = mats(at)
 
-  def vectorget(vecs: MultiSeq[Seq[Double]], at: Seq[Int]): Seq[Double] = vecs(at)
+  def vectorget(vecs: MultiSeq[Seq[Double]], size: Int, at: Seq[Int]): Seq[Double] = vecs(at)
   def vectorset(src: Seq[Double], vecs: MultiSeq[Seq[Double]], at: Seq[Int]): MultiSeq[Seq[Double]] = {
     if(vecs(at).length != src.length) throw new IRValidationException()
     vecs.updated(at, src)

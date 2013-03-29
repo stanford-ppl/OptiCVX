@@ -5,6 +5,7 @@ import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvers
 import ppl.dsl.opticvx.solvergen._
 import ppl.dsl.opticvx.runtime.definite._
+import ppl.dsl.opticvx.runtime.cgen._
 import scala.collection.immutable.Seq
 import scala.collection.immutable.Set
 
@@ -45,6 +46,13 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
       new CvxSSolutionDefinite(spp, vv(0))
+    }
+    def solve_cgen(): String = {
+      if(solver.input.args.length != 0) throw new IRValidationException()
+      val srt = new SolverRuntimeCGen(solver.arity)
+      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
+      val vv = solver.run(srt, srt.params, Seq(), mm)
+      srt.code
     }
   }
 

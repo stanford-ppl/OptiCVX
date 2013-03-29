@@ -17,7 +17,15 @@ class VectorSym(val i: Int, val size: IntSym) extends Sym {
   def name: String = "x" + i.toString
 }
 class MemorySym(val i: Int) extends Sym {
-  def name: String = "m" + i.toString
+  private var valid: Boolean = true
+  def name: String = {
+    if(!valid) throw new IRValidationException()
+    "m" + i.toString
+  }
+  def copyinvalidate: MemorySym = {
+    valid = false
+    new MemorySym(i)
+  }
 }
 class MatrixSym(val i: Int) extends Sym {
   def name: String = "a" + i.toString
@@ -26,7 +34,7 @@ class InputSym(val i: Int) extends Sym {
   def name: String = "b" + i.toString
 }
 
-class SolverRuntimeCGen extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
+class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
   private var intsym_ni: Int = 0
   private def nextint: IntSym = {
     intsym_ni += 1
@@ -53,8 +61,20 @@ class SolverRuntimeCGen extends SolverRuntime[IntSym, MatrixSym, InputSym, Vecto
     new InputSym(inputsym_ni)
   }
 
+  def code: String = {
+    codeacc
+  }
+
+  private var codeacc: String = ""
   private def emit(code: String, repls: Tuple2[String, Sym]*) {
 
+  }
+
+
+  val params: Seq[IntSym] = for(i <- 0 until arity) yield {
+    val rv = nextint
+    emit("int %rv = param" + i.toString + ";", "rv" -> rv)
+    rv
   }
 
   object intlikei extends IntLike[IntSym] {
@@ -182,31 +202,168 @@ class SolverRuntimeCGen extends SolverRuntime[IntSym, MatrixSym, InputSym, Vecto
       "rv" -> rv, "len" -> len, "va" -> va, "vasize" -> va.size, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
     rv
   }
-  /*
-  def slice(arg: V, at: I, size: I): V
+  def slice(arg: VectorSym, at: IntSym, size: IntSym): VectorSym = {
+    val rv = nextvector(size)
+    val i = nextint
+    emit("""
+      double %rv[%size];
+      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i + %at];
+      """,
+      "rv" -> rv, "x" -> arg, "at" -> at, "size" -> size, "i" -> i)
+    rv
+  }
   //nonlinear operators
-  def dot(arg1: V, arg2: V): V
-  def mpy(arg: V, scale: V): V
-  def div(arg: V, scale: V): V
-  def norm2(arg: V): V
-  def sqrt(arg: V): V
-  def max(arg1: V, arg2: V): V
-  def min(arg1: V, arg2: V): V
-  def norm_inf(arg: V): V
+  def dot(arg1: VectorSym, arg2: VectorSym): VectorSym = {
+    val rvsize = intlikei.int2T(1)
+    val rv = nextvector(rvsize)
+    val i = nextint
+    emit("""
+      double %rv[1] = {0.0};
+      for(int %i = 0; %i < %size, %i++) %rv[0] += %x[%i] * %y[%i];
+      """,
+      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
+    rv
+  }
+  def mpy(arg: VectorSym, scale: VectorSym): VectorSym = {
+    val rv = nextvector(arg.size)
+    val i = nextint
+    emit("""
+      double %rv[%size];
+      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] * %a[0];
+      """,
+      "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
+    rv
+  }
+  def div(arg: VectorSym, scale: VectorSym): VectorSym = {
+    val rv = nextvector(arg.size)
+    val i = nextint
+    emit("""
+      double %rv[%size];
+      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] / %a[0];
+      """,
+      "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
+    rv
+  }
+  def norm2(arg: VectorSym): VectorSym = dot(arg, arg)
+  def sqrt(arg: VectorSym): VectorSym = {
+    val rvsize = intlikei.int2T(1)
+    val rv = nextvector(rvsize)
+    emit("double %rv[1] = { sqrt(%x[0]) };", "rv" -> rv, "x" -> arg)
+    rv
+  }
+  def max(arg1: VectorSym, arg2: VectorSym): VectorSym = {
+    val rv = nextvector(arg1.size)
+    val i = nextint
+    emit("""
+      double %rv[%size];
+      for(int %i = 0; %i < %size; %i++) %rv[%i] = (%x[%i] > %y[%i]) ? %x[%i] : %y[%i];
+      """,
+      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
+    rv
+  }
+  def min(arg1: VectorSym, arg2: VectorSym): VectorSym = {
+    val rv = nextvector(arg1.size)
+    val i = nextint
+    emit("""
+      double %rv[%size];
+      for(int %i = 0; %i < %size; %i++) %rv[%i] = (%x[%i] < %y[%i]) ? %x[%i] : %y[%i];
+      """,
+      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
+    rv
+  }
+  def norm_inf(arg: VectorSym): VectorSym = {
+    val rvsize = intlikei.int2T(1)
+    val rv = nextvector(rvsize)
+    val i = nextint
+    emit("""
+      double %rv[1] = {0.0};
+      for(int %i = 0; %i < %size; %i++) if (fabs(%x[%i]) > %rv[0]) %rv[0] = fabs(%x[%i]);
+      """,
+      "rv" -> rv, "x" -> arg, "size" -> arg.size, "i" -> i)
+    rv
+  }
 
+  def matrixmpy(m: MatrixSym, x: VectorSym): VectorSym = {
+    throw new Exception("Matrix inputs not yet supported")
+  }
+  def matrixmpytranspose(m: MatrixSym, x: VectorSym): VectorSym = {
+    throw new Exception("Matrix inputs not yet supported")
+  }
 
-  def matrixmpy(m: M, x: V): V
-  def matrixmpytranspose(m: M, x: V): V
+  def matrixget(mats: InputSym, at: Seq[IntSym]): MatrixSym = {
+    throw new Exception("Matrix inputs not yet supported")
+  }
 
-  def matrixget(mats: N, at: Seq[I]): M
+  def vectorget(vecs: MemorySym, size: IntSym, at: Seq[IntSym]): VectorSym = {
+    val rv = nextvector(size)
+    var emitstr: String = "double* " + rv.name + " = " + vecs.name
+    for(i <- at) {
+      emitstr += ".idx[" + i.name + "]"
+    }
+    emitstr += ".vec;"
+    emit(emitstr)
+    rv
+  }
 
-  def vectorget(vecs: W, at: Seq[I]): V
-  def vectorset(src: V, vecs: W, at: Seq[I]): W
+  def vectorset(src: VectorSym, vecs: MemorySym, at: Seq[IntSym]): MemorySym = {
+    var emitstr: String = "memcpy(" + vecs.name
+    for(i <- at) {
+      emitstr += ".idx[" + i.name + "]"
+    }
+    emitstr += ".vec, " + src.name + ", " + src.size.name + " * sizeof(double));"
+    vecs.copyinvalidate
+  }
 
-  def memoryallocfor(dim: I, ar: Int, body: I => W): W
-  def memoryalloc(size: I): W
+  def memoryallocfor(dim: IntSym, ar: Int, body: IntSym => MemorySym): MemorySym = {
+    val rv = nextmemory
+    val i = nextint
+    emit("""
+      memory_t* %rv = malloc(%dim * sizeof(memory_t*)));
+      for(int %i = 0; %i < %dim; %i++) {
+      """,
+      "rv" -> rv, "i" -> i, "dim" -> dim)
+    val x = body(i)
+    emit("""
+      %rv.idx[%i] = %x;
+      }
+      """,
+      "rv" -> rv, "i" -> i, "dim" -> dim, "x" -> x)
+    rv
+  }
+  def memoryalloc(size: IntSym): MemorySym = {
+    val rv = nextmemory
+    emit("memory_t* %rv = malloc(%size * sizeof(double));", "rv" -> rv, "size" -> size)
+    rv
+  }
 
-  def converge(memory: Seq[W], itermax: Int, body: (Seq[W]) => (Seq[W], V)): Seq[W]
-  def runfor(len: I, memory: Seq[W], body: (I, Seq[W]) => Seq[W]): Seq[W]
-  */
+  def converge(memory: Seq[MemorySym], itermax: Int, body: (Seq[MemorySym]) => (Seq[MemorySym], VectorSym)): Seq[MemorySym] = {
+    val ict = nextint
+    if(itermax > 0) {
+      emit("int %ict = 0;", "ict" -> ict)
+    }
+    emit("while(1) {")
+    val (newmem, cond) = body(memory)
+    if(newmem.length != memory.length) throw new IRValidationException()
+    for(i <- 0 until newmem.length) {
+      if(newmem(i).i != memory(i).i) throw new IRValidationException()
+    }
+    if(itermax > 0) {
+      emit("%ict++;\nif(%ict >= " + itermax.toString + ") break;", "ict" -> ict)
+    }
+    emit("if(%cond[0] <= 0.0) break;\n}", "cond" -> cond)
+    newmem
+  }
+
+  def runfor(len: IntSym, memory: Seq[MemorySym], body: (IntSym, Seq[MemorySym]) => Seq[MemorySym]): Seq[MemorySym] = {
+    val i = nextint
+    emit("for(int %i = 0; %i < %len; %i++) {", "i" -> i, "len" -> len)
+    val newmem = body(i, memory)
+    if(newmem.length != memory.length) throw new IRValidationException()
+    for(i <- 0 until newmem.length) {
+      if(newmem(i).i != memory(i).i) throw new IRValidationException()
+    }
+    emit("}")
+    newmem
+  }
+  
 }

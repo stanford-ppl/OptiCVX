@@ -37,7 +37,7 @@ trait SolverRuntime[I, M, N, V, W] {
 
   def matrixget(mats: N, at: Seq[I]): M
 
-  def vectorget(vecs: W, at: Seq[I]): V
+  def vectorget(vecs: W, size: I, at: Seq[I]): V
   def vectorset(src: V, vecs: W, at: Seq[I]): W
 
   def memoryallocfor(dim: I, ar: Int, body: I => W): W
