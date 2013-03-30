@@ -10,6 +10,7 @@ import ppl.dsl.opticvx.solvers._
 trait Sym {
   def name: String
 }
+class FlatSym(val name: String) extends Sym
 trait IntSym extends Sym
 class IntSymL(val i: Int) extends IntSym {
   def name: String = "i" + i.toString
@@ -38,7 +39,7 @@ class InputSym(val i: Int) extends Sym {
   def name: String = "b" + i.toString
 }
 
-class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
+class SolverRuntimeCGen(val arity: Int, val ninputs: Int) extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
   private var intsym_ni: Int = 0
   private def nextint: IntSym = {
     intsym_ni += 1
@@ -77,17 +78,82 @@ typedef union memory_t {
   double vec[0];
 } memory_t;
 
-int main(int argc, char** argv) {
+typedef union input_t {
+  union input_t* idx[0];
+  double mat[0];
+} input_t;
+
+//returns the number of inner loop iterations required to converge
+int solve("""
+    for(i <- 0 until arity) {
+      if(i != 0) rv += ", "
+      rv += "int param" + i.toString
+    }
+    for(i <- 0 until ninputs) {
+      rv += ", input_t* input" + i.toString
+    }
+    for(i <- 0 until num_outputs) {
+      rv += ", double** output" + i.toString
+    }
+    rv += """) {
 int inner_loop_ct = 0;
 
 """ 
-    rv += "if(argc != " + (arity + 1).toString + ") {\nprintf(\"error: expected " + arity.toString + " arguments\\n\\n\");\nreturn -1;\n}\n\n"
+    rv += codeacc
+    rv += "\n\nreturn inner_loop_ct;\n\n}\n\n"
+    rv
+  }
+
+  def hcode: String = {
+    var rv = """
+
+typedef union input_t {
+  union input_t* idx[0];
+  double mat[0];
+} input_t;
+
+int solve("""
+    for(i <- 0 until arity) {
+      if(i != 0) rv += ", "
+      rv += "int param" + i.toString
+    }
+    for(i <- 0 until ninputs) {
+      rv += ", input_t* input" + i.toString
+    }
+    for(i <- 0 until num_outputs) {
+      rv += ", double** output" + i.toString
+    }
+    rv += ");\n\n"
+    rv
+  }
+
+  def maincode: String = {
+    var rv = """
+#include <stdlib.h>
+#include <stdio.h>
+#include "out.h"
+
+int main(int argc, char** argv) {
+"""
+    rv += "if (argc != " + arity.toString + " + 1) {\nprintf(\"error: expected " + arity.toString + " arguments.\\n\");\nreturn -1;\n}\n\n"
     for(i <- 0 until arity) {
       rv += "int param" + i.toString + " = atoi(argv[" + (i+1).toString + "]);\n"
     }
     rv += "\n"
-    rv += codeacc
-    rv += "\n\nprintf(\"converged in %d iterations\\n\", inner_loop_ct);\n\n}\n\n"
+    rv += "int iteration_ct = solve("
+    for(i <- 0 until arity) {
+      if(i != 0) rv += ", "
+      rv += "param" + i.toString
+    }
+    for(i <- 0 until ninputs) {
+      rv += ", NULL"
+    }
+    for(i <- 0 until num_outputs) {
+      rv += ", NULL"
+    }
+    rv += ");\n\n"
+    rv += "printf(\"converged in %d iterations\\n\", iteration_ct);\n\n"
+    rv += "return 0;\n\n}\n\n"
     rv
   }
 
@@ -102,6 +168,21 @@ int inner_loop_ct = 0;
     //  throw new IRValidationException()
     //}
     codeacc += accv + "\n"
+  }
+
+
+  var num_outputs: Int = 0
+  def add_output(o: VectorSym) {
+    val i = nextint
+    val po = new FlatSym("output" + num_outputs.toString)
+    emit("""
+      if(%po != NULL) {
+      *%po = malloc(%size * sizeof(double));
+      for(int %i = 0; %i < %size; %i++) (*%po)[%i] = %o[%i];
+      }
+      """,
+      "o" -> o, "size" -> o.size, "i" -> i, "po" -> po)
+    num_outputs += 1
   }
 
   def print(x: VectorSym, name: String, fmt: String) {

@@ -113,13 +113,14 @@ object DCPOpsTestApp extends DCPOps {
     /* solve the problem */
     //val soln = solver.solve_definite(5)()
     val ccodeobj = solver.solve_cgen()
-    ccodeobj.resolve_print(x, "x", "%.4f")
-    ccodeobj.resolve_print(y, "y", "%.4f")
-    val ccode = ccodeobj.code
-    val fout = new File("out.c")
-    val fwriter = new FileWriter(fout)
-    fwriter.write(ccode)
-    fwriter.close()
+    ccodeobj.resolve_output_and_print(x, "x", "%.4f")
+    ccodeobj.resolve_output_and_print(y, "y", "%.4f")
+    val csolver = ccodeobj.compile()
+    // val ccode = ccodeobj.code
+    // val fout = new File("out.c")
+    // val fwriter = new FileWriter(fout)
+    // fwriter.write(ccode)
+    // fwriter.close()
     /* print out the results */
     //println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     //println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))

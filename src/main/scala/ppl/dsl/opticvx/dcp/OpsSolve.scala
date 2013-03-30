@@ -9,6 +9,8 @@ import ppl.dsl.opticvx.runtime.cgen._
 import scala.collection.immutable.Seq
 import scala.collection.immutable.Set
 
+import java.io._
+
 
 trait DCPOpsSolve extends DCPOpsFunction {
 
@@ -47,21 +49,47 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
       new CvxSSolutionDefinite(spp, vv(0))
     }
-    def solve_cgen(): CvxSSolutionCGen = {
+    def solve_cgen(): CvxSSolverCGen = {
       if(solver.input.args.length != 0) throw new IRValidationException()
-      val srt = new SolverRuntimeCGen(solver.arity)
+      val srt = new SolverRuntimeCGen(solver.arity, solver.input.args.length)
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, Seq(), mm)
-      new CvxSSolutionCGen(srt, vv(0))
+      new CvxSSolverCGen(srt, vv(0))
     }
   }
 
-  class CvxSSolutionCGen(val srt: SolverRuntimeCGen, val vv: MemorySym) {
+  class CvxSSolverCGen(val srt: SolverRuntimeCGen, val vv: MemorySym) {
     def code: String = srt.code
 
     def resolve_print(x: CvxExprSymbol, name: String, fmt: String) {
       val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
       srt.print(xr, name, fmt)
+    }
+
+    def resolve_output(x: CvxExprSymbol) {
+      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
+      srt.add_output(xr)
+    }
+
+    def resolve_output_and_print(x: CvxExprSymbol, name: String, fmt: String) {
+      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
+      srt.add_output(xr)
+      srt.print(xr, name, fmt)
+    }
+
+    def compile() {
+      val fout = new File("cgen/gen/out.c")
+      val fwriter = new FileWriter(fout)
+      fwriter.write(srt.code)
+      fwriter.close()
+      val fhout = new File("cgen/gen/out.h")
+      val fhwriter = new FileWriter(fhout)
+      fhwriter.write(srt.hcode)
+      fhwriter.close()
+      val fmout = new File("cgen/gen/main.c")
+      val fmwriter = new FileWriter(fmout)
+      fmwriter.write(srt.maincode)
+      fmwriter.close()
     }
   }
 
