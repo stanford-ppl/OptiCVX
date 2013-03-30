@@ -47,12 +47,21 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
       new CvxSSolutionDefinite(spp, vv(0))
     }
-    def solve_cgen(): String = {
+    def solve_cgen(): CvxSSolutionCGen = {
       if(solver.input.args.length != 0) throw new IRValidationException()
       val srt = new SolverRuntimeCGen(solver.arity)
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, Seq(), mm)
-      srt.code
+      new CvxSSolutionCGen(srt, vv(0))
+    }
+  }
+
+  class CvxSSolutionCGen(val srt: SolverRuntimeCGen, val vv: MemorySym) {
+    def code: String = srt.code
+
+    def resolve_print(x: CvxExprSymbol, name: String, fmt: String) {
+      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
+      srt.print(xr, name, fmt)
     }
   }
 

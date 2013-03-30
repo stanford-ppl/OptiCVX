@@ -10,8 +10,12 @@ import ppl.dsl.opticvx.solvers._
 trait Sym {
   def name: String
 }
-class IntSym(val i: Int) extends Sym {
+trait IntSym extends Sym
+class IntSymL(val i: Int) extends IntSym {
   def name: String = "i" + i.toString
+}
+class IntSymD(val c: Int) extends IntSym {
+  def name: String = c.toString
 }
 class VectorSym(val i: Int, val size: IntSym) extends Sym {
   def name: String = "x" + i.toString
@@ -38,7 +42,7 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
   private var intsym_ni: Int = 0
   private def nextint: IntSym = {
     intsym_ni += 1
-    new IntSym(intsym_ni)
+    new IntSymL(intsym_ni)
   }
   private var vectorsym_ni: Int = 0
   private def nextvector(size: IntSym): VectorSym = {
@@ -62,12 +66,48 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
   }
 
   def code: String = {
-    codeacc
+    var rv = """
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+typedef union memory_t {
+  union memory_t* idx[0];
+  double vec[0];
+} memory_t;
+
+int main(int argc, char** argv) {
+int inner_loop_ct = 0;
+
+""" 
+    rv += "if(argc != " + (arity + 1).toString + ") {\nprintf(\"error: expected " + arity.toString + " arguments\\n\\n\");\nreturn -1;\n}\n\n"
+    for(i <- 0 until arity) {
+      rv += "int param" + i.toString + " = atoi(argv[" + (i+1).toString + "]);\n"
+    }
+    rv += "\n"
+    rv += codeacc
+    rv += "\n\nprintf(\"converged in %d iterations\\n\", inner_loop_ct);\n\n}\n\n"
+    rv
   }
 
   private var codeacc: String = ""
   private def emit(code: String, repls: Tuple2[String, Sym]*) {
+    var accv = code.trim
+    for(r <- repls) {
+      accv = accv.replace("%" + r._1, r._2.name)
+    }
+    //if(accv.contains("%")) {
+    //  println(accv)
+    //  throw new IRValidationException()
+    //}
+    codeacc += accv + "\n"
+  }
 
+  def print(x: VectorSym, name: String, fmt: String) {
+    val i = nextint
+    emit("printf(\"" + name + " = [\");\nfor(int %i = 0; %i < %size; %i++) printf(\"" + fmt + ", \", %x[%i]);\nprintf(\"]\\n\");",
+      "i" -> i, "x" -> x, "size" -> x.size)
   }
 
 
@@ -79,29 +119,71 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
 
   object intlikei extends IntLike[IntSym] {
     def add(x: IntSym, y: IntSym): IntSym = {
-      val rv = nextint
-      emit("int %rv = %x + %y;", "rv" -> rv, "x" -> x, "y" -> y)
-      rv
+      if(x.isInstanceOf[IntSymD] && y.isInstanceOf[IntSymD]) {
+        new IntSymD(x.asInstanceOf[IntSymD].c + y.asInstanceOf[IntSymD].c)
+      }
+      else if(x.isInstanceOf[IntSymD] && x.asInstanceOf[IntSymD].c == 0) {
+        y
+      }
+      else if(y.isInstanceOf[IntSymD] && y.asInstanceOf[IntSymD].c == 0) {
+        x
+      }
+      else {
+        val rv = nextint
+        emit("int %rv = %x + %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        rv
+      }
     }
     def neg(x: IntSym): IntSym = {
-      val rv = nextint
-      emit("int %rv = -%x;", "rv" -> rv, "x" -> x)
-      rv
+      if(x.isInstanceOf[IntSymD]) {
+        new IntSymD(-x.asInstanceOf[IntSymD].c)
+      }
+      else {
+        val rv = nextint
+        emit("int %rv = -%x;", "rv" -> rv, "x" -> x)
+        rv
+      }
     }
     def multiply(x: IntSym, y: IntSym): IntSym = {
-      val rv = nextint
-      emit("int %rv = %x * %y;", "rv" -> rv, "x" -> x, "y" -> y)
-      rv
+      if(x.isInstanceOf[IntSymD] && y.isInstanceOf[IntSymD]) {
+        new IntSymD(x.asInstanceOf[IntSymD].c * y.asInstanceOf[IntSymD].c)
+      }
+      else if(x.isInstanceOf[IntSymD] && x.asInstanceOf[IntSymD].c == 0) {
+        new IntSymD(0)
+      }
+      else if(y.isInstanceOf[IntSymD] && y.asInstanceOf[IntSymD].c == 0) {
+        new IntSymD(0)
+      }
+      else if(x.isInstanceOf[IntSymD] && x.asInstanceOf[IntSymD].c == 1) {
+        y
+      }
+      else if(y.isInstanceOf[IntSymD] && y.asInstanceOf[IntSymD].c == 1) {
+        x
+      }
+      else {
+        val rv = nextint
+        emit("int %rv = %x * %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        rv
+      }
     }
     def divide(x: IntSym, r: Int): IntSym = {
-      val rv = nextint
-      emit("int %rv = %x / " + r.toString + ";", "rv" -> rv, "x" -> x)
-      rv
+      if(x.isInstanceOf[IntSymD]) {
+        new IntSymD(x.asInstanceOf[IntSymD].c / r)
+      }
+      else if(r == 1) {
+        x
+      }
+      else {
+        val rv = nextint
+        emit("int %rv = %x / " + r.toString + ";", "rv" -> rv, "x" -> x)
+        rv
+      }
     }
     implicit def int2T(x: Int): IntSym = {
-      val rv = nextint
-      emit("int %rv = " + x.toString + ";", "rv" -> rv)
-      rv
+      new IntSymD(x)
+      // val rv = nextint
+      // emit("int %rv = " + x.toString + ";", "rv" -> rv)
+      // rv
     }
   }
 
@@ -139,18 +221,19 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     val rv = nextvector(size)
     val i = nextint
     val j = nextint
+    val k = nextint
     emit("""
       double %rv[%size];
-      for(int %j = 0; %j < %len; %j++) %rv[%j] = 0.0;
-      for(int %i = 0; %i < %len, %i++) {
+      for(int %j = 0; %j < %size; %j++) %rv[%j] = 0.0;
+      for(int %i = 0; %i < %len; %i++) {
       """,
       "rv" -> rv, "size" -> size, "len" -> len, "i" -> i, "j" -> j)
     val va = arg(i)
     emit("""
-      for(int %j = 0; %j < %len; %j++) %rv[%j] += %va[%j];
+      for(int %k = 0; %k < %size; %k++) %rv[%k] += %va[%k];
       }
       """,
-      "rv" -> rv, "va" -> va, "size" -> size, "len" -> len, "i" -> i, "j" -> j)
+      "rv" -> rv, "va" -> va, "size" -> size, "len" -> len, "k" -> k)
     return rv
   }
   def neg(arg: VectorSym): VectorSym = {
@@ -180,7 +263,7 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
       for(int %i = 0; %i < %xsize; %i++) %rv[%i] = %x[%i];
       for(int %j = 0; %j < %ysize; %j++) %rv[%j + %xsize] = %y[%j];
       """,
-      "rv" -> rv, "size" -> irv, "x" -> arg1, "y" -> arg2, "xsize" -> arg1.size, "ysize" -> arg2.size, "i" -> i, "j" -> j)
+      "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1, "y" -> arg2, "i" -> i, "j" -> j)
     rv
   }
   def catfor(len: IntSym, size: IntSym, arg: (IntSym => VectorSym)): VectorSym = {
@@ -199,7 +282,7 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
       for(int %j = 0; %j < %vasize; %j++, %k++) %rv[%k] = %va[%j];
       }
       """,
-      "rv" -> rv, "len" -> len, "va" -> va, "vasize" -> va.size, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
+      "rv" -> rv, "len" -> len, "vasize" -> va.size, "va" -> va, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
     rv
   }
   def slice(arg: VectorSym, at: IntSym, size: IntSym): VectorSym = {
@@ -219,7 +302,7 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     val i = nextint
     emit("""
       double %rv[1] = {0.0};
-      for(int %i = 0; %i < %size, %i++) %rv[0] += %x[%i] * %y[%i];
+      for(int %i = 0; %i < %size; %i++) %rv[0] += %x[%i] * %y[%i];
       """,
       "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
     rv
@@ -298,9 +381,9 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     val rv = nextvector(size)
     var emitstr: String = "double* " + rv.name + " = " + vecs.name
     for(i <- at) {
-      emitstr += ".idx[" + i.name + "]"
+      emitstr += "->idx[" + i.name + "]"
     }
-    emitstr += ".vec;"
+    emitstr += "->vec;"
     emit(emitstr)
     rv
   }
@@ -308,9 +391,10 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
   def vectorset(src: VectorSym, vecs: MemorySym, at: Seq[IntSym]): MemorySym = {
     var emitstr: String = "memcpy(" + vecs.name
     for(i <- at) {
-      emitstr += ".idx[" + i.name + "]"
+      emitstr += "->idx[" + i.name + "]"
     }
-    emitstr += ".vec, " + src.name + ", " + src.size.name + " * sizeof(double));"
+    emitstr += "->vec, " + src.name + ", " + src.size.name + " * sizeof(double));"
+    emit(emitstr)
     vecs.copyinvalidate
   }
 
@@ -324,7 +408,7 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
       "rv" -> rv, "i" -> i, "dim" -> dim)
     val x = body(i)
     emit("""
-      %rv.idx[%i] = %x;
+      %rv->idx[%i] = %x;
       }
       """,
       "rv" -> rv, "i" -> i, "dim" -> dim, "x" -> x)
@@ -336,21 +420,28 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     rv
   }
 
+  var isconverge: Boolean = false
   def converge(memory: Seq[MemorySym], itermax: Int, body: (Seq[MemorySym]) => (Seq[MemorySym], VectorSym)): Seq[MemorySym] = {
     val ict = nextint
     if(itermax > 0) {
       emit("int %ict = 0;", "ict" -> ict)
     }
     emit("while(1) {")
+    isconverge = false
     val (newmem, cond) = body(memory)
     if(newmem.length != memory.length) throw new IRValidationException()
     for(i <- 0 until newmem.length) {
       if(newmem(i).i != memory(i).i) throw new IRValidationException()
     }
+    if(isconverge == false) {
+      //this is the innermost convergence loop
+      emit("inner_loop_ct++;")
+    }
     if(itermax > 0) {
       emit("%ict++;\nif(%ict >= " + itermax.toString + ") break;", "ict" -> ict)
     }
     emit("if(%cond[0] <= 0.0) break;\n}", "cond" -> cond)
+    isconverge = true
     newmem
   }
 

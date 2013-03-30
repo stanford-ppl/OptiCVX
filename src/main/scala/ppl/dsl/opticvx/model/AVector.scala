@@ -40,6 +40,7 @@ trait AVector extends HasInput[AVector] {
     inputs: Seq[N],
     memory: Seq[W])(tv: V): V = 
   {
+    /*
     if(size.eval(params)(runtime.intlikei) != runtime.size(tv)) {
       println(params)
       println(size)
@@ -49,6 +50,7 @@ trait AVector extends HasInput[AVector] {
       println(memory(10))
       throw new IRValidationException()
     }
+    */
     tv
   }
 

@@ -1,5 +1,6 @@
 package apps
 
+import java.io._
 import scala.collection.immutable.Seq
 import ppl.dsl.opticvx.dcp._
 
@@ -91,28 +92,36 @@ object DCPOpsTestApp extends DCPOps {
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
-      given(inputvector(n) -> a),
+      given(),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
       /* we bind z to an expression */
-      let(2.0 * x -> z),
+      let(),
       /* our constraints */
       where(
-        cfor(n) {i => x(i) <= sqrt(a(i))},
-        cfor(n) {i => y(i) >= square(a(i))}
+        x(0) == 0.0,
+        cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
+        cfor(n) {i => y(i) >= square(x(i))}
       ),
       /* the objective */
       minimize(
-        y.sum - x.sum
+        y.sum
       )
     )
     /* generate a solver */
     val solver = prob.gen(PrimalDualOperatorSplitting)
     /* solve the problem */
-    val soln = solver.solve_definite(5)(inputvectordefinite(Seq(1.0, 2.0, 3.0, 4.0, 5.0)))
+    //val soln = solver.solve_definite(5)()
+    val ccodeobj = solver.solve_cgen()
+    ccodeobj.resolve_print(x, "x", "%.4f")
+    ccodeobj.resolve_print(y, "y", "%.4f")
+    val ccode = ccodeobj.code
+    val fout = new File("out.c")
+    val fwriter = new FileWriter(fout)
+    fwriter.write(ccode)
+    fwriter.close()
     /* print out the results */
-    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("z = " + soln.resolve(z).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    //println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    //println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
   }
 }
