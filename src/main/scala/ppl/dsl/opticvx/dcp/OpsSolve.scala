@@ -10,7 +10,7 @@ import scala.collection.immutable.Seq
 import scala.collection.immutable.Set
 
 import java.io._
-
+import java.lang.Runtime
 
 trait DCPOpsSolve extends DCPOpsFunction {
 
@@ -77,19 +77,49 @@ trait DCPOpsSolve extends DCPOpsFunction {
       srt.print(xr, name, fmt)
     }
 
-    def compile() {
-      val fout = new File("cgen/gen/out.c")
+    def compile(): CvxCSolverProgram = {
+      val fout = new File("cgen/out.c")
       val fwriter = new FileWriter(fout)
       fwriter.write(srt.code)
       fwriter.close()
-      val fhout = new File("cgen/gen/out.h")
+      val fhout = new File("cgen/out.h")
       val fhwriter = new FileWriter(fhout)
       fhwriter.write(srt.hcode)
       fhwriter.close()
-      val fmout = new File("cgen/gen/main.c")
+      val fmout = new File("cgen/main.c")
       val fmwriter = new FileWriter(fmout)
       fmwriter.write(srt.maincode)
       fmwriter.close()
+      val rt = java.lang.Runtime.getRuntime()
+      val cproc = rt.exec(
+        Array[String]("gcc", "--std=gnu99", "-O1", "-o", "cgen.out" ,"out.c", "main.c"),
+        Array[String](),
+        new File("cgen"))
+      cproc.waitFor()
+      new CvxCSolverProgram(srt.arity)
+    }
+  }
+
+  class CvxCSolverProgram(val arity: Int) {
+    def run(params: Int*) {
+      if(params.length != arity) throw new IRValidationException()
+      val argarray: Array[String] = new Array[String](1 + params.length)
+      argarray(0) = "./cgen.out"
+      for(i <- 0 until params.length) {
+        argarray(i + 1) = params(i).toString
+      }
+      val rt = java.lang.Runtime.getRuntime()
+      val cproc = rt.exec(
+        argarray,
+        Array[String](),
+        new File("cgen"))
+      val in = cproc.getInputStream()
+      var c: Int = in.read()
+      while (c != -1) {
+        System.out.write(c.toChar);
+        c = in.read();
+      }
+      cproc.waitFor()
     }
   }
 

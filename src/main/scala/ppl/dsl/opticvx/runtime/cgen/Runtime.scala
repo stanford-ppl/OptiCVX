@@ -18,6 +18,7 @@ class IntSymL(val i: Int) extends IntSym {
 class IntSymD(val c: Int) extends IntSym {
   def name: String = c.toString
 }
+class IntSymM(val name: String) extends IntSym
 class VectorSym(val i: Int, val size: IntSym) extends Sym {
   def name: String = "x" + i.toString
 }
@@ -193,9 +194,10 @@ int main(int argc, char** argv) {
 
 
   val params: Seq[IntSym] = for(i <- 0 until arity) yield {
-    val rv = nextint
-    emit("int %rv = param" + i.toString + ";", "rv" -> rv)
-    rv
+    // val rv = nextint
+    // emit("int %rv = param" + i.toString + ";", "rv" -> rv)
+    // rv
+    new IntSymM("param" + i.toString)
   }
 
   object intlikei extends IntLike[IntSym] {
@@ -210,9 +212,10 @@ int main(int argc, char** argv) {
         x
       }
       else {
-        val rv = nextint
-        emit("int %rv = %x + %y;", "rv" -> rv, "x" -> x, "y" -> y)
-        rv
+        // val rv = nextint
+        // emit("int %rv = %x + %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        // rv
+        new IntSymM("(" + x.name + " + " + y.name + ")")
       }
     }
     def neg(x: IntSym): IntSym = {
@@ -220,9 +223,10 @@ int main(int argc, char** argv) {
         new IntSymD(-x.asInstanceOf[IntSymD].c)
       }
       else {
-        val rv = nextint
-        emit("int %rv = -%x;", "rv" -> rv, "x" -> x)
-        rv
+        // val rv = nextint
+        // emit("int %rv = -%x;", "rv" -> rv, "x" -> x)
+        // rv
+        new IntSymM("(-" + x.name + ")")
       }
     }
     def multiply(x: IntSym, y: IntSym): IntSym = {
@@ -242,9 +246,10 @@ int main(int argc, char** argv) {
         x
       }
       else {
-        val rv = nextint
-        emit("int %rv = %x * %y;", "rv" -> rv, "x" -> x, "y" -> y)
-        rv
+        new IntSymM("(" + x.name + " * " + y.name + ")")
+        // val rv = nextint
+        // emit("int %rv = %x * %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        // rv
       }
     }
     def divide(x: IntSym, r: Int): IntSym = {
@@ -255,9 +260,10 @@ int main(int argc, char** argv) {
         x
       }
       else {
-        val rv = nextint
-        emit("int %rv = %x / " + r.toString + ";", "rv" -> rv, "x" -> x)
-        rv
+        new IntSymM("(" + x.name + " / " + r.toString + ")")
+        // val rv = nextint
+        // emit("int %rv = %x / " + r.toString + ";", "rv" -> rv, "x" -> x)
+        // rv
       }
     }
     implicit def int2T(x: Int): IntSym = {
