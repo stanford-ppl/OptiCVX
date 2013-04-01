@@ -116,7 +116,7 @@ object DCPOpsTestApp extends DCPOps {
     ccodeobj.resolve_output_and_print(x, "x", "%.4f")
     ccodeobj.resolve_output_and_print(y, "y", "%.4f")
     val csolver = ccodeobj.compile()
-    csolver.run(5)
+    csolver.run(10)
     // val ccode = ccodeobj.code
     // val fout = new File("out.c")
     // val fwriter = new FileWriter(fout)

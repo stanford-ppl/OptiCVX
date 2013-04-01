@@ -489,7 +489,7 @@ int main(int argc, char** argv) {
     val rv = nextmemory
     val i = nextint
     emit("""
-      memory_t* %rv = malloc(%dim * sizeof(memory_t*)));
+      memory_t* %rv = alloca(%dim * sizeof(memory_t*)));
       for(int %i = 0; %i < %dim; %i++) {
       """,
       "rv" -> rv, "i" -> i, "dim" -> dim)
@@ -503,7 +503,7 @@ int main(int argc, char** argv) {
   }
   def memoryalloc(size: IntSym): MemorySym = {
     val rv = nextmemory
-    emit("memory_t* %rv = malloc(%size * sizeof(double));", "rv" -> rv, "size" -> size)
+    emit("memory_t* %rv = alloca(%size * sizeof(double));", "rv" -> rv, "size" -> size)
     rv
   }
 
