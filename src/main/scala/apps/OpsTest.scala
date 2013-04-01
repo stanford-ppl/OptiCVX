@@ -74,6 +74,14 @@ object DCPOpsTestApp extends DCPOps {
     )
   }
 
+  def tictoc[T](t: =>T): T = {
+    val start = System.currentTimeMillis()
+    val r: T = t
+    val elapsed = System.currentTimeMillis() - start
+    println("elapsed time: %.3f seconds".format(elapsed * 0.001))
+    r
+  }
+
   def main(args: Array[String]) {
 
     /* now, we solve a problem */
@@ -87,7 +95,8 @@ object DCPOpsTestApp extends DCPOps {
     val y = cvxexpr
     val z = cvxexpr
     /* define the problem */
-    val prob = problem(
+    println("defining a problem...")
+    val prob = tictoc(problem(
       /* here, we bind an integer to the parameter n */
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
@@ -107,23 +116,30 @@ object DCPOpsTestApp extends DCPOps {
       minimize(
         y.sum
       )
-    )
+    ))
     /* generate a solver */
-    val solver = prob.gen(PrimalDualOperatorSplitting)
+    println("generating the solver...")
+    val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
     /* solve the problem */
-    //val soln = solver.solve_definite(5)()
-    val ccodeobj = solver.solve_cgen()
-    ccodeobj.resolve_output_and_print(x, "x", "%.4f")
-    ccodeobj.resolve_output_and_print(y, "y", "%.4f")
-    val csolver = ccodeobj.compile()
-    csolver.run(10)
-    // val ccode = ccodeobj.code
-    // val fout = new File("out.c")
-    // val fwriter = new FileWriter(fout)
-    // fwriter.write(ccode)
-    // fwriter.close()
+    println("solving the problem in Scala...")
+    val soln = tictoc(solver.solve_definite(5)())
     /* print out the results */
-    //println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    //println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+
+    /* generate code for the solver in C */
+    println("generating C solver code...")
+    val ccodeobj = tictoc(solver.solve_cgen())
+    /* add code to print out some of the variables in the C program */
+    /* this is necessary since I haven't added another way for the C
+     * solver to communicate results back to the Scala program */
+    ccodeobj.resolve_output_and_print(x, "x", "%.3f")
+    ccodeobj.resolve_output_and_print(y, "y", "%.3f")
+    /* compile the code using gcc */
+    println("compiling C solver...")
+    val csolver = tictoc(ccodeobj.compile())
+    /* run the generated C code */
+    println("solving the problem in C...")
+    tictoc(csolver.run(5))
   }
 }
