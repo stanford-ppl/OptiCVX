@@ -1,0 +1,84 @@
+
+#include <stdlib.h>
+#include <stdio.h>
+#include "solver.h"
+
+extern solver_t solver;
+
+input_t* read_input(FILE* f, input_desc_t desc, int* params) {
+  /* allocate enough space on the stack for the temporary array */
+  int tmpidxs[desc.order];
+  return read_input_sub(f, desc, params, 0, tmpidxs);
+}
+
+input_t* read_input_sub(FILE* f, input_desc_t desc, int* params, int n_idxs, int* idxs) {
+  if(n_idxs == desc.order) {
+    return (input_t*)read_matrix(f, desc.shape(params, idxs));
+  }
+  int isz = desc.structure(params, n_idxs, idxs);
+  input_t** rv = malloc(isz * sizeof(input_t*));
+  for(int i = 0; i < isz; i++) {
+    idxs[n_idxs] = i;
+    rv[i] = read_input_sub(f, desc, params, n_idxs + 1, idxs);
+  }
+  return (input_t*)rv;
+}
+
+double* read_matrix(FILE* f, matrix_shape_t shape) {
+  double* rv = malloc(shape.domain * shape.codomain * sizeof(double));
+  for(int i = 0; i < shape.domain * shape.codomain; i++) {
+    const char* scanstr;
+    if(i == (shape.domain * shape.codomain - 1))) {
+      if(i == 0) {
+        scanstr = " [ %lf ]";
+      }
+      else if(i % shape.domain == 0) {
+        scanstr = " ; %lf ]";
+      }
+      else {
+        scanstr = " , %lf ]"
+      }
+    }
+    else {
+      if(i == 0) {
+        scanstr = " [ %lf";
+      }
+      else if(i % shape.domain == 0) {
+        scanstr = " ; %lf";
+      }
+      else {
+        scanstr = " , %lf"
+      }
+    }
+    if(fscanf(f, scanstr, &(rv[i])) == 0) {
+      fprintf(stderr, "error in reading input matrix.\n");
+      exit();
+    }
+  }
+  return rv;
+}
+
+int main(int argc, char** argv) {
+  if (argc != solver.num_params + 1) {
+    printf("error: expected %d arguments.\n", solver.num_params);
+    return -1;
+  }
+
+  int params[solver.num_params];
+  for(int i = 0; i < solver.num_params; i++) {
+    params[i] = atoi(argv[i+1]);
+  }
+
+  input_t* inputs[solver.num_inputs];
+  for(int i = 0; i < solver.num_inputs; i++) {
+    inputs[i] = read_input(stdin, solver.input_descs[i], params);
+  }
+
+  int iteration_ct = solve(param0, NULL, NULL);
+
+  printf("converged in %d iterations\n", iteration_ct);
+
+  return 0;
+
+}
+

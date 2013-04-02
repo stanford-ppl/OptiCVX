@@ -152,6 +152,7 @@ trait SolverGen {
 
     code(A, b, F, g, c, cone)
 
+    if(variables(0) != MemoryArgDesc(Seq(), problem.varSize)) throw new IRValidationException()
     input = InputDesc(problem.arity, problem.input.args, variables)
     prephase = false
     vidx = 0

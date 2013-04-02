@@ -127,6 +127,7 @@ object DCPOpsTestApp extends DCPOps {
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
 
+    /*
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.solve_cgen())
@@ -141,5 +142,6 @@ object DCPOpsTestApp extends DCPOps {
     /* run the generated C code */
     println("solving the problem in C...")
     tictoc(csolver.run(5))
+    */
   }
 }
