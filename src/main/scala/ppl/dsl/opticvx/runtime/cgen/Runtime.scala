@@ -68,43 +68,36 @@ class SolverRuntimeCGen(val arity: Int, val ninputs: Int) extends SolverRuntime[
   }
 
   def code: String = {
+    if(!output_written) throw new IRValidationException()
     var rv = """
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "../src/solver.h"
 
 typedef union memory_t {
   union memory_t* idx[0];
   double vec[0];
 } memory_t;
 
-typedef union input_t {
-  union input_t* idx[0];
-  double mat[0];
-} input_t;
-
 //returns the number of inner loop iterations required to converge
-int solve("""
-    for(i <- 0 until arity) {
-      if(i != 0) rv += ", "
-      rv += "int param" + i.toString
-    }
-    for(i <- 0 until ninputs) {
-      rv += ", input_t* input" + i.toString
-    }
-    for(i <- 0 until num_outputs) {
-      rv += ", double** output" + i.toString
-    }
-    rv += """) {
-int inner_loop_ct = 0;
-
-""" 
+static solution_t solve(int* params, input_t** inputs, double* output) {"""
+    rv += "\nint inner_loop_ct = 0;\n\n"
     rv += codeacc
-    rv += "\n\nreturn inner_loop_ct;\n\n}\n\n"
+    rv += "\n\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
+    rv += "static int variable_size(int* params) {\n"
+    rv += "return " + output_size.name + ";\n}\n\n"
+    rv += "solver_t solver = {\n"
+    rv += ".num_params = " + arity.toString + ",\n"
+    rv += ".num_inputs = 0,\n"
+    rv += ".input_descs = NULL,\n"
+    rv += ".variable_size = variable_size,\n"
+    rv += ".solve = solve};\n\n"
     rv
   }
 
+/*
   def hcode: String = {
     var rv = """
 
@@ -157,6 +150,7 @@ int main(int argc, char** argv) {
     rv += "return 0;\n\n}\n\n"
     rv
   }
+*/
 
   private var codeacc: String = ""
   private def emit(code: String, repls: Tuple2[String, Sym]*) {
@@ -172,18 +166,16 @@ int main(int argc, char** argv) {
   }
 
 
-  var num_outputs: Int = 0
-  def add_output(o: VectorSym) {
+  var output_written = false
+  var output_size: IntSym = null
+  def write_output(o: VectorSym) {
+    if(output_written) throw new IRValidationException()
+    output_written = true
+    output_size = o.size
     val i = nextint
-    val po = new FlatSym("output" + num_outputs.toString)
-    emit("""
-      if(%po != NULL) {
-      *%po = malloc(%size * sizeof(double));
-      for(int %i = 0; %i < %size; %i++) (*%po)[%i] = %o[%i];
-      }
-      """,
+    val po = new FlatSym("output")
+    emit("for(int %i = 0; %i < %size; %i++) %po[%i] = %o[%i];",
       "o" -> o, "size" -> o.size, "i" -> i, "po" -> po)
-    num_outputs += 1
   }
 
   def print(x: VectorSym, name: String, fmt: String) {
@@ -197,7 +189,7 @@ int main(int argc, char** argv) {
     // val rv = nextint
     // emit("int %rv = param" + i.toString + ";", "rv" -> rv)
     // rv
-    new IntSymM("param" + i.toString)
+    new IntSymM("params[" + i.toString + "]")
   }
 
   object intlikei extends IntLike[IntSym] {

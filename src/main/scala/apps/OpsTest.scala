@@ -121,27 +121,27 @@ object DCPOpsTestApp extends DCPOps {
     println("generating the solver...")
     val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
     /* solve the problem */
-    println("solving the problem in Scala...")
-    val soln = tictoc(solver.solve_definite(5)())
+    //println("solving the problem in Scala...")
+    //val soln = tictoc(solver.solve_definite(5)())
     /* print out the results */
-    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    //println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    //println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
 
-    /*
+    
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.solve_cgen())
     /* add code to print out some of the variables in the C program */
     /* this is necessary since I haven't added another way for the C
      * solver to communicate results back to the Scala program */
-    ccodeobj.resolve_output_and_print(x, "x", "%.3f")
-    ccodeobj.resolve_output_and_print(y, "y", "%.3f")
+    //ccodeobj.resolve_output_and_print(x, "x", "%.3f")
+    //ccodeobj.resolve_output_and_print(y, "y", "%.3f")
     /* compile the code using gcc */
     println("compiling C solver...")
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
     tictoc(csolver.run(5))
-    */
+    
   }
 }

@@ -20,10 +20,10 @@ typedef struct input_desc_t {
    */
   int order;
   /* what is the size of the array at this particular index into
-   * the structure?  Requires 0 <= n_idxs < order, and that idxs
-   * is an array of length n_idxs.
+   * the structure?  Requires 0 <= [array index] < order, and that
+   * idxs is an array of length [array index].
    */
-  int (*structure)(int* params, int n_idxs, int* idxs);
+  int (**structure)(int* params, int* idxs);
   /* what is the shape of the matrix at this particular index
    * in the structure?  idxs must be an array of length order.
    */

@@ -54,6 +54,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val srt = new SolverRuntimeCGen(solver.arity, solver.input.args.length)
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, Seq(), mm)
+      srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).size.eval(srt.params)(srt.intlikei), Seq()))
       new CvxSSolverCGen(srt, vv(0))
     }
   }
@@ -66,6 +67,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       srt.print(xr, name, fmt)
     }
 
+    /*
     def resolve_output(x: CvxExprSymbol) {
       val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
       srt.add_output(xr)
@@ -76,25 +78,24 @@ trait DCPOpsSolve extends DCPOpsFunction {
       srt.add_output(xr)
       srt.print(xr, name, fmt)
     }
+    */
 
     def compile(): CvxCSolverProgram = {
-      val fout = new File("cgen/out.c")
+      val fout = new File("cgen/gen/out.c")
       val fwriter = new FileWriter(fout)
       fwriter.write(srt.code)
       fwriter.close()
-      val fhout = new File("cgen/out.h")
-      val fhwriter = new FileWriter(fhout)
-      fhwriter.write(srt.hcode)
-      fhwriter.close()
-      val fmout = new File("cgen/main.c")
-      val fmwriter = new FileWriter(fmout)
-      fmwriter.write(srt.maincode)
-      fmwriter.close()
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
-        Array[String]("gcc", "--std=gnu99", "-O1", "-o", "cgen.out" ,"out.c", "main.c"),
+        Array[String]("bash", "-c", "gcc --std=gnu99 -O1 -o bin/cgen.out gen/out.c src/main.c >log/gcc.o 2>log/gcc.e"),
         Array[String](),
         new File("cgen"))
+      val in = cproc.getErrorStream()
+      var c: Int = in.read()
+      while (c != -1) {
+        System.out.write(c.toChar);
+        c = in.read();
+      }
       cproc.waitFor()
       new CvxCSolverProgram(srt.arity)
     }
@@ -104,7 +105,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
     def run(params: Int*) {
       if(params.length != arity) throw new IRValidationException()
       val argarray: Array[String] = new Array[String](1 + params.length)
-      argarray(0) = "./cgen.out"
+      argarray(0) = "bin/cgen.out"
       for(i <- 0 until params.length) {
         argarray(i + 1) = params(i).toString
       }

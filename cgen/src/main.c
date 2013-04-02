@@ -5,6 +5,10 @@
 
 extern solver_t solver;
 
+input_t* read_input(FILE* f, input_desc_t desc, int* params);
+input_t* read_input_sub(FILE* f, input_desc_t desc, int* params, int n_idxs, int* idxs);
+double* read_matrix(FILE* f, matrix_shape_t shape);
+
 input_t* read_input(FILE* f, input_desc_t desc, int* params) {
   /* allocate enough space on the stack for the temporary array */
   int tmpidxs[desc.order];
@@ -15,7 +19,7 @@ input_t* read_input_sub(FILE* f, input_desc_t desc, int* params, int n_idxs, int
   if(n_idxs == desc.order) {
     return (input_t*)read_matrix(f, desc.shape(params, idxs));
   }
-  int isz = desc.structure(params, n_idxs, idxs);
+  int isz = desc.structure[n_idxs](params, idxs);
   input_t** rv = malloc(isz * sizeof(input_t*));
   for(int i = 0; i < isz; i++) {
     idxs[n_idxs] = i;
@@ -28,7 +32,7 @@ double* read_matrix(FILE* f, matrix_shape_t shape) {
   double* rv = malloc(shape.domain * shape.codomain * sizeof(double));
   for(int i = 0; i < shape.domain * shape.codomain; i++) {
     const char* scanstr;
-    if(i == (shape.domain * shape.codomain - 1))) {
+    if(i == (shape.domain * shape.codomain - 1)) {
       if(i == 0) {
         scanstr = " [ %lf ]";
       }
@@ -36,7 +40,7 @@ double* read_matrix(FILE* f, matrix_shape_t shape) {
         scanstr = " ; %lf ]";
       }
       else {
-        scanstr = " , %lf ]"
+        scanstr = " , %lf ]";
       }
     }
     else {
@@ -47,12 +51,12 @@ double* read_matrix(FILE* f, matrix_shape_t shape) {
         scanstr = " ; %lf";
       }
       else {
-        scanstr = " , %lf"
+        scanstr = " , %lf";
       }
     }
     if(fscanf(f, scanstr, &(rv[i])) == 0) {
       fprintf(stderr, "error in reading input matrix.\n");
-      exit();
+      exit(-1);
     }
   }
   return rv;
@@ -74,9 +78,15 @@ int main(int argc, char** argv) {
     inputs[i] = read_input(stdin, solver.input_descs[i], params);
   }
 
-  int iteration_ct = solve(param0, NULL, NULL);
+  int problem_size = solver.variable_size(params);
+  double output[problem_size];
+  solution_t solution = solver.solve(params, inputs, output);
 
-  printf("converged in %d iterations\n", iteration_ct);
+  for(int i = 0; i < problem_size; i++) {
+    printf("%g\n", output[i]);
+  }
+
+  printf("iterations: %d\n", solution.num_iterations);
 
   return 0;
 
