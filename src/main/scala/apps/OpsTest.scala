@@ -141,7 +141,9 @@ object DCPOpsTestApp extends DCPOps {
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
-    tictoc(csolver.run(5))
+    val soln = tictoc(csolver.run(5))
+    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     
   }
 }

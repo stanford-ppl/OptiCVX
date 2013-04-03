@@ -55,11 +55,11 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, Seq(), mm)
       srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).size.eval(srt.params)(srt.intlikei), Seq()))
-      new CvxSSolverCGen(srt, vv(0))
+      new CvxSSolverCGen(srt, vv(0), solver.input.memory(0).size)
     }
   }
 
-  class CvxSSolverCGen(val srt: SolverRuntimeCGen, val vv: MemorySym) {
+  class CvxSSolverCGen(val srt: SolverRuntimeCGen, val vv: MemorySym, val vvsize: IRPoly) {
     def code: String = srt.code
 
     def resolve_print(x: CvxExprSymbol, name: String, fmt: String) {
@@ -97,30 +97,29 @@ trait DCPOpsSolve extends DCPOpsFunction {
         c = in.read();
       }
       cproc.waitFor()
-      new CvxCSolverProgram(srt.arity)
+      new CvxCSolverProgram(srt.arity, vvsize)
     }
   }
 
-  class CvxCSolverProgram(val arity: Int) {
-    def run(params: Int*) {
-      if(params.length != arity) throw new IRValidationException()
-      val argarray: Array[String] = new Array[String](1 + params.length)
+  class CvxCSolverProgram(val arity: Int, val vvsize: IRPoly) {
+    def run(params: Int*): CvxSSolutionDefinite = {
+      val pp = Seq(params:_*)
+      if(pp.length != arity) throw new IRValidationException()
+      val argarray: Array[String] = new Array[String](1 + pp.length)
       argarray(0) = "bin/cgen.out"
-      for(i <- 0 until params.length) {
-        argarray(i + 1) = params(i).toString
+      for(i <- 0 until pp.length) {
+        argarray(i + 1) = pp(i).toString
       }
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
         argarray,
         Array[String](),
         new File("cgen"))
-      val in = cproc.getInputStream()
-      var c: Int = in.read()
-      while (c != -1) {
-        System.out.write(c.toChar);
-        c = in.read();
-      }
+      val vvsz = vvsize.eval(pp)(IntLikeInt)
+      val in = new BufferedReader(new InputStreamReader(cproc.getInputStream()))
+      val vv = for(i <- 0 until vvsz) yield in.readLine().toDouble
       cproc.waitFor()
+      new CvxSSolutionDefinite(pp, MultiSeqA0(vv))
     }
   }
 
