@@ -50,10 +50,15 @@ trait DCPOpsSolve extends DCPOpsFunction {
       new CvxSSolutionDefinite(spp, vv(0))
     }
     def solve_cgen(): CvxSSolverCGen = {
-      if(solver.input.args.length != 0) throw new IRValidationException()
-      val srt = new SolverRuntimeCGen(solver.arity, solver.input.args.length)
+      val srt = new SolverRuntimeCGen(solver.arity)
+      srt.setinputs(solver.input.args map ((a: InputArgDesc) =>
+        InputDescCGen(
+          a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
+          ((b: Seq[IntSym]) => (a.domain.eval(b)(srt.intlikei))),
+          ((b: Seq[IntSym]) => (a.codomain.eval(b)(srt.intlikei)))
+      )))
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
-      val vv = solver.run(srt, srt.params, Seq(), mm)
+      val vv = solver.run(srt, srt.params, srt.inputs, mm)
       srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).size.eval(srt.params)(srt.intlikei), Seq()))
       new CvxSSolverCGen(srt, vv(0), solver.input.memory(0).size)
     }
@@ -87,7 +92,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       fwriter.close()
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
-        Array[String]("bash", "-c", "gcc --std=gnu99 -O1 -o bin/cgen.out gen/out.c src/main.c >log/gcc.o 2>log/gcc.e"),
+        Array[String]("bash", "-c", "gcc --std=gnu99 -O1 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"),
         Array[String](),
         new File("cgen"))
       val in = cproc.getErrorStream()

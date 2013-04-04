@@ -37,10 +37,12 @@ class MatrixSym(val i: Int) extends Sym {
   def name: String = "a" + i.toString
 }
 class InputSym(val i: Int) extends Sym {
-  def name: String = "b" + i.toString
+  def name: String = "inputs[" + i.toString + "]"
 }
+case class InputDescCGen(dims: Seq[Seq[IntSym]=>IntSym], domain: Seq[IntSym] => IntSym, codomain: Seq[IntSym] => IntSym)
 
-class SolverRuntimeCGen(val arity: Int, val ninputs: Int) extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
+
+class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym, InputSym, VectorSym, MemorySym] {
   private var intsym_ni: Int = 0
   private def nextint: IntSym = {
     intsym_ni += 1
@@ -61,10 +63,16 @@ class SolverRuntimeCGen(val arity: Int, val ninputs: Int) extends SolverRuntime[
     matrixsym_ni += 1
     new MatrixSym(matrixsym_ni)
   }
-  private var inputsym_ni: Int = 0
-  private def nextinput: InputSym = {
-    inputsym_ni += 1
-    new InputSym(inputsym_ni)
+  // private var inputsym_ni: Int = 0
+  // private def nextinput: InputSym = {
+  //   inputsym_ni += 1
+  //   new InputSym(inputsym_ni)
+  // }
+
+  private var inputdescs: Seq[InputDescCGen] = null
+  def setinputs(is: Seq[InputDescCGen]) {
+    if(inputdescs != null) throw new IRValidationException()
+    inputdescs = is
   }
 
   def code: String = {
@@ -88,6 +96,30 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     rv += "\n\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
     rv += "static int variable_size(int* params) {\n"
     rv += "return " + output_size.name + ";\n}\n\n"
+    for(i <- 0 until inputdescs.length) {
+      for(j <- 0 until inputdescs(i).dims.length) {
+        rv += "int structure_input" + i.toString + "_order" + j.toString + "(int* params, int* iidx) {\n"
+        val pps = for (k <- 0 until arity) yield new IntSymM("params[" + k.toString + "]")
+        val iis = for (k <- 0 until j) yield new IntSymM("iidx[" + k.toString + "]")
+        val szs = inputdescs(i).dims(j)(pps ++ iis)
+        rv += "return " + szs.name + ";\n}\n\n"
+      }
+      rv += "matrix_shape_t shape_input" + i.toString + "(int* params, int* iidx) {\n"
+      val pps = for (k <- 0 until arity) yield new IntSymM("params[" + k.toString + "]")
+      val iis = for (k <- 0 until inputdescs(i).dims.length) yield new IntSymM("iidx[" + k.toString + "]")
+      val dm = inputdescs(i).domain(pps ++ iis)
+      val cdm = inputdescs(i).codomain(pps ++ iis)
+      rv += "matrix_shape_t rv;\n"
+      rv += "rv.domain = " + dm.name + ";\n"
+      rv += "rv.codomain = " + cdm.name + ";\n}\n\n"
+      rv += "input_desc_t inputdesc" + i.toString + " = {\n"
+      rv += ".order = " + inputdescs(i).dims.length.toString + ",\n"
+      rv += ".structure = "
+      ####NOT LEGAL SCALA SYNTAX####
+      Need to finish this part of the code.
+      Need to add finish populating the structure.
+
+    }
     rv += "solver_t solver = {\n"
     rv += ".num_params = " + arity.toString + ",\n"
     rv += ".num_inputs = 0,\n"
@@ -185,11 +217,15 @@ int main(int argc, char** argv) {
   }
 
 
-  val params: Seq[IntSym] = for(i <- 0 until arity) yield {
+  lazy val params: Seq[IntSym] = for(i <- 0 until arity) yield {
     // val rv = nextint
     // emit("int %rv = param" + i.toString + ";", "rv" -> rv)
     // rv
     new IntSymM("params[" + i.toString + "]")
+  }
+
+  lazy val inputs: Seq[InputSym] = for(i <- 0 until inputdescs.length) yield {
+    new InputSym(i)
   }
 
   object intlikei extends IntLike[IntSym] {
@@ -445,15 +481,47 @@ int main(int argc, char** argv) {
     rv
   }
 
-  def matrixmpy(m: MatrixSym, x: VectorSym): VectorSym = {
-    throw new Exception("Matrix inputs not yet supported")
+  def matrixmpy(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {
+    val rv = nextvector(osize)
+    val i = nextint
+    val j = nextint
+    emit("""
+      double %rv[%osize];
+      for(int %i = 0; %i < %osize; %i++) {
+        %rv[%i] = 0.0;
+        for(int %j = 0; %j < %isize; %j++) {
+          %rv[%i] += %m[%i*%isize+%j] * %x[%j];
+        }
+      }
+      """,
+      "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+    rv
   }
-  def matrixmpytranspose(m: MatrixSym, x: VectorSym): VectorSym = {
-    throw new Exception("Matrix inputs not yet supported")
+  def matrixmpytranspose(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {
+    val rv = nextvector(osize)
+    val i = nextint
+    val j = nextint
+    emit("""
+      double %rv[%osize];
+      for(int %i = 0; %i < %osize; %i++) {
+        %rv[%i] = 0.0;
+        for(int %j = 0; %j < %isize; %j++) {
+          %rv[%i] += %m[%j*%osize+%i] * %x[%j];
+        }
+      }
+      """,
+      "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+    rv
   }
 
   def matrixget(mats: InputSym, at: Seq[IntSym]): MatrixSym = {
-    throw new Exception("Matrix inputs not yet supported")
+    val rv = nextmatrix
+    var emitstr: String = "double* " + rv.name + " = " + mats.name
+    for(a <- at) {
+      emitstr += ".idx[" + a.name + "]"
+    }
+    emitstr += ".vec;"
+    rv
   }
 
   def vectorget(vecs: MemorySym, size: IntSym, at: Seq[IntSym]): VectorSym = {

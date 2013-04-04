@@ -506,6 +506,7 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
   {
     runtime.matrixmpy(
       runtime.matrixget(inputs(iidx), sidx map (s => s.eval(params)(runtime.intlikei))),
+      size.eval(params)(runtime.intlikei),
       arg.eval(runtime, params, inputs, memory))
   }
 
@@ -558,6 +559,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
   {
     runtime.matrixmpytranspose(
       runtime.matrixget(inputs(iidx), sidx map (s => s.eval(params)(runtime.intlikei))),
+      size.eval(params)(runtime.intlikei),
       arg.eval(runtime, params, inputs, memory))
   }
 

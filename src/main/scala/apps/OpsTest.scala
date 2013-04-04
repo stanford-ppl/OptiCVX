@@ -101,14 +101,14 @@ object DCPOpsTestApp extends DCPOps {
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
-      given(),
+      given(inputscalar -> a),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
       /* we bind z to an expression */
       let(),
       /* our constraints */
       where(
-        x(0) == 0.0,
+        x(0) == a,
         cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
         cfor(n) {i => y(i) >= square(x(i))}
       ),

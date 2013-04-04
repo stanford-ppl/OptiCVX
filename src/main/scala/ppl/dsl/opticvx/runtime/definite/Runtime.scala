@@ -101,8 +101,8 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
   }
 
 
-  def matrixmpy(m: MatrixDefinite, x: Seq[Double]): Seq[Double] = m.mmpy(x)
-  def matrixmpytranspose(m: MatrixDefinite, x: Seq[Double]): Seq[Double] = m.mmpyT(x)
+  def matrixmpy(m: MatrixDefinite, osize: Int, x: Seq[Double]): Seq[Double] = m.mmpy(x)
+  def matrixmpytranspose(m: MatrixDefinite, osize: Int, x: Seq[Double]): Seq[Double] = m.mmpyT(x)
 
   def matrixget(mats: MultiSeq[MatrixDefinite], at: Seq[Int]): MatrixDefinite = mats(at)
 

@@ -32,8 +32,8 @@ trait SolverRuntime[I, M, N, V, W] {
   def norm_inf(arg: V): V
 
 
-  def matrixmpy(m: M, x: V): V
-  def matrixmpytranspose(m: M, x: V): V
+  def matrixmpy(m: M, osize: I, x: V): V
+  def matrixmpytranspose(m: M, osize: I, x: V): V
 
   def matrixget(mats: N, at: Seq[I]): M
 
