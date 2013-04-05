@@ -110,7 +110,9 @@ object DCPOpsTestApp extends DCPOps {
     println("defining a problem...")
     val prob = tictoc(problem(
       /* here, we bind an integer to the parameter n */
-      /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
+      /* this just shows how parameters work
+       * we could've just as easily used an integer literal 
+        * in place of n in the code below */
       params(n),
       /* this problem has one vector input, a */
       given(inputvector(n) -> a),
