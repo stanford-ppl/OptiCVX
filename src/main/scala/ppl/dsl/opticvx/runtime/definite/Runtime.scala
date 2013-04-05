@@ -25,6 +25,23 @@ case class MatrixDefinite(m: Int, n: Int, data: Seq[Double]) {
       (0 until m).foldLeft(0.0)((a, j) => a + getat(j, i)*x(j))
     }
   }
+  def formatc: String = {
+    var rv: String = ""
+    for(i <- 0 until data.length) {
+      if(i == 0) {
+        rv += "[ "
+      }
+      else if(i % n == 0) {
+        rv += "; "
+      }
+      else {
+        rv += ", "
+      }
+      rv += data(i).toString
+    }
+    rv += " ]"
+    rv
+  }
 }
 
 object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]] {

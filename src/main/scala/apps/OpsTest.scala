@@ -101,33 +101,33 @@ object DCPOpsTestApp extends DCPOps {
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
       /* this problem has no inputs */
-      given(inputscalar -> a),
+      given(inputvector(n) -> a),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
       /* we bind z to an expression */
       let(),
       /* our constraints */
       where(
-        x(0) == a,
-        cfor(n-1) {i => x(i + 1) == x(i) + 1.0},
-        cfor(n) {i => y(i) >= square(x(i))}
+        cfor(n) {i => x(i) <= sqrt(a(i))},
+        cfor(n) {i => y(i) >= square(a(i))}
       ),
       /* the objective */
       minimize(
-        y.sum
+        y.sum - x.sum
       )
     ))
     /* generate a solver */
     println("generating the solver...")
     val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
+    /* define variables to store the inputs we'll pass to the solver */
+    val n_in: Int = 5
+    val a_in: Seq[Double] = Seq(1.0, 3.0, 2.0, 4.0, 0.5)
     /* solve the problem */
-    //println("solving the problem in Scala...")
-    //val soln = tictoc(solver.solve_definite(5)())
+    println("solving the problem in Scala...")
+    val soln = tictoc(solver.solve_definite(n_in)(inputvectordefinite(a_in)))
     /* print out the results */
-    //println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    //println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-
-    
+    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.solve_cgen())
@@ -141,9 +141,9 @@ object DCPOpsTestApp extends DCPOps {
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
-    val soln = tictoc(csolver.run(5))
-    println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    val csoln = tictoc(csolver.run(n_in)(inputvectordefinite(a_in)))
+    println("x = " + csoln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("y = " + csoln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     
   }
 }

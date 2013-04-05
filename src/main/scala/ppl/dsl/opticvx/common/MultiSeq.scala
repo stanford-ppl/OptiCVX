@@ -6,6 +6,7 @@ sealed trait MultiSeq[T] {
   def order: Int
   def apply(at: Seq[Int]): T
   def updated(at: Seq[Int], elem: T): MultiSeq[T]
+  def linearize: Seq[T]
 }
 
 object MultiSeq {
@@ -22,6 +23,7 @@ case class MultiSeqA0[T](t: T) extends MultiSeq[T] {
     if(at != Seq()) throw new IRValidationException()
     MultiSeqA0(elem)
   }
+  def linearize: Seq[T] = Seq(t)
 }
 
 case class MultiSeqN[T](o: Int, ar: Seq[MultiSeq[T]]) extends MultiSeq[T] {
@@ -34,5 +36,8 @@ case class MultiSeqN[T](o: Int, ar: Seq[MultiSeq[T]]) extends MultiSeq[T] {
   }
   def updated(at: Seq[Int], elem: T): MultiSeq[T] = {
     MultiSeqN(o, ar.updated(at(0), ar(at(0)).updated(at.drop(1), elem)))
+  }
+  def linearize: Seq[T] = {
+    ar.foldLeft(Seq(): Seq[T])((a,b) => a ++ b.linearize)
   }
 }

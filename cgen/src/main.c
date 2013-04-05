@@ -29,7 +29,6 @@ input_t* read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, in
 }
 
 double* read_matrix(FILE* f, matrix_shape_t shape) {
-  printf("reading %d x %d matrix\n", shape.domain, shape.codomain);
   double* rv = malloc(shape.domain * shape.codomain * sizeof(double));
   for(int i = 0; i < shape.domain * shape.codomain; i++) {
     const char* scanstr;

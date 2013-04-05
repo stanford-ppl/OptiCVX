@@ -60,19 +60,19 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, srt.inputs, mm)
       srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).size.eval(srt.params)(srt.intlikei), Seq()))
-      new CvxSSolverCGen(srt, vv(0), solver.input.memory(0).size)
+      new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).size)
     }
   }
 
-  class CvxSSolverCGen(val srt: SolverRuntimeCGen, val vv: MemorySym, val vvsize: IRPoly) {
+  class CvxSSolverCGen(val srt: SolverRuntimeCGen, val numinputs: Int, val vv: MemorySym, val vvsize: IRPoly) {
     def code: String = srt.code
 
+    /*
     def resolve_print(x: CvxExprSymbol, name: String, fmt: String) {
       val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
       srt.print(xr, name, fmt)
     }
 
-    /*
     def resolve_output(x: CvxExprSymbol) {
       val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
       srt.add_output(xr)
@@ -103,14 +103,15 @@ trait DCPOpsSolve extends DCPOpsFunction {
       }
       val gccrv = cproc.waitFor()
       if(gccrv != 0) throw new Exception("Error in compiling generated source.")
-      new CvxCSolverProgram(srt.arity, vvsize)
+      new CvxCSolverProgram(srt.arity, numinputs, vvsize)
     }
   }
 
-  class CvxCSolverProgram(val arity: Int, val vvsize: IRPoly) {
-    def run(params: Int*): CvxSSolutionDefinite = {
+  class CvxCSolverProgram(val arity: Int, val numinputs: Int, val vvsize: IRPoly) {
+    def run(params: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
       val pp = Seq(params:_*)
       if(pp.length != arity) throw new IRValidationException()
+      if(ins.length != numinputs) throw new IRValidationException()
       val argarray: Array[String] = new Array[String](1 + pp.length)
       argarray(0) = "bin/cgen.out"
       for(i <- 0 until pp.length) {
@@ -122,6 +123,15 @@ trait DCPOpsSolve extends DCPOpsFunction {
         Array[String](),
         new File("cgen"))
       val vvsz = vvsize.eval(pp)(IntLikeInt)
+      val outw = new OutputStreamWriter(cproc.getOutputStream())
+      val out = new BufferedWriter(outw)
+      for(a <- ins) {
+        for(l <- a.linearize) {
+          out.write(l.formatc + "\n")
+        }
+      }
+      out.close()
+      outw.close()
       val in = new BufferedReader(new InputStreamReader(cproc.getInputStream()))
       val vv = for(i <- 0 until vvsz) yield in.readLine().toDouble
       val solverrv = cproc.waitFor()
