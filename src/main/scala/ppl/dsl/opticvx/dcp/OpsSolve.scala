@@ -40,7 +40,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   class CvxSSolver(val solver: Solver) {
-    def solve_definite(pp: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
+    def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
       if(pp.length != solver.arity) throw new IRValidationException()
       if(ins.length != solver.input.args.length) throw new IRValidationException()
       val spp: Seq[Int] = Seq(pp:_*)
@@ -49,7 +49,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
       new CvxSSolutionDefinite(spp, vv(0))
     }
-    def solve_cgen(): CvxSSolverCGen = {
+    def cgen(): CvxSSolverCGen = {
       val srt = new SolverRuntimeCGen(solver.arity)
       srt.setinputs(solver.input.args map ((a: InputArgDesc) =>
         InputDescCGen(
@@ -66,24 +66,6 @@ trait DCPOpsSolve extends DCPOpsFunction {
 
   class CvxSSolverCGen(val srt: SolverRuntimeCGen, val numinputs: Int, val vv: MemorySym, val vvsize: IRPoly) {
     def code: String = srt.code
-
-    /*
-    def resolve_print(x: CvxExprSymbol, name: String, fmt: String) {
-      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
-      srt.print(xr, name, fmt)
-    }
-
-    def resolve_output(x: CvxExprSymbol) {
-      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
-      srt.add_output(xr)
-    }
-
-    def resolve_output_and_print(x: CvxExprSymbol, name: String, fmt: String) {
-      val xr = x.resolution.eval(srt, srt.params, Seq(), Seq(vv))
-      srt.add_output(xr)
-      srt.print(xr, name, fmt)
-    }
-    */
 
     def compile(): CvxCSolverProgram = {
       val fout = new File("cgen/gen/out.c")
@@ -108,7 +90,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   class CvxCSolverProgram(val arity: Int, val numinputs: Int, val vvsize: IRPoly) {
-    def run(params: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
+    def solve(params: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
       val pp = Seq(params:_*)
       if(pp.length != arity) throw new IRValidationException()
       if(ins.length != numinputs) throw new IRValidationException()
@@ -155,18 +137,6 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val srt = SolverRuntimeDefinite
       x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))
     }
-
-
-      // val syms = (s_over map (x => x.symbol)) ++ (s_let map (x => x.symbol))
-      // for(s <- syms) {
-      //   val x = s.boundexpr
-      //   val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
-      //   val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(tt.input.memory(0)))
-      //   val sv = AVectorSum(
-      //     msfx.valueOffset.addMemory(sinput.memory),
-      //     msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
-      //   s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
-      // }
   }
 
   def problem(
@@ -234,14 +204,11 @@ trait DCPOpsSolve extends DCPOpsFunction {
     for(s <- syms) {
       val x = s.boundexpr
       val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
-      //s.releaseexpr()
-      //s.bindexpr(new CvxExpr(msfx))
       val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(MemoryArgDesc(Seq(), msfx.varSize)))
       val sv = AVectorSum(
         msfx.valueOffset.addMemory(sinput.memory),
         msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
       s.rset(sv)
-      //s.rset(sv.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv(0))))
     }
 
     new CvxSProblem(problem)

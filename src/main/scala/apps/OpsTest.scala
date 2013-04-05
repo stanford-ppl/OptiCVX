@@ -83,7 +83,6 @@ object DCPOpsTestApp extends DCPOps {
   }
 
   def main(args: Array[String]) {
-
     /* now, we solve a problem */
     /* first, declare the symbols */
     /* n is a integer input parameter */
@@ -124,24 +123,19 @@ object DCPOpsTestApp extends DCPOps {
     val a_in: Seq[Double] = Seq(1.0, 3.0, 2.0, 4.0, 0.5)
     /* solve the problem */
     println("solving the problem in Scala...")
-    val soln = tictoc(solver.solve_definite(n_in)(inputvectordefinite(a_in)))
+    val soln = tictoc(solver.solve(n_in)(inputvectordefinite(a_in)))
     /* print out the results */
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     /* generate code for the solver in C */
     println("generating C solver code...")
-    val ccodeobj = tictoc(solver.solve_cgen())
-    /* add code to print out some of the variables in the C program */
-    /* this is necessary since I haven't added another way for the C
-     * solver to communicate results back to the Scala program */
-    //ccodeobj.resolve_output_and_print(x, "x", "%.3f")
-    //ccodeobj.resolve_output_and_print(y, "y", "%.3f")
+    val ccodeobj = tictoc(solver.cgen())
     /* compile the code using gcc */
     println("compiling C solver...")
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
-    val csoln = tictoc(csolver.run(n_in)(inputvectordefinite(a_in)))
+    val csoln = tictoc(csolver.solve(n_in)(inputvectordefinite(a_in)))
     println("x = " + csoln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + csoln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     

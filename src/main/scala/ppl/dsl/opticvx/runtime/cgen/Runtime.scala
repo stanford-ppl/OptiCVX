@@ -63,11 +63,6 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     matrixsym_ni += 1
     new MatrixSym(matrixsym_ni)
   }
-  // private var inputsym_ni: Int = 0
-  // private def nextinput: InputSym = {
-  //   inputsym_ni += 1
-  //   new InputSym(inputsym_ni)
-  // }
 
   private var inputdescs: Seq[InputDescCGen] = null
   def setinputs(is: Seq[InputDescCGen]) {
@@ -139,71 +134,16 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     rv
   }
 
-/*
-  def hcode: String = {
-    var rv = """
-
-typedef union input_t {
-  union input_t* idx[0];
-  double mat[0];
-} input_t;
-
-int solve("""
-    for(i <- 0 until arity) {
-      if(i != 0) rv += ", "
-      rv += "int param" + i.toString
-    }
-    for(i <- 0 until ninputs) {
-      rv += ", input_t* input" + i.toString
-    }
-    for(i <- 0 until num_outputs) {
-      rv += ", double** output" + i.toString
-    }
-    rv += ");\n\n"
-    rv
-  }
-
-  def maincode: String = {
-    var rv = """
-#include <stdlib.h>
-#include <stdio.h>
-#include "out.h"
-
-int main(int argc, char** argv) {
-"""
-    rv += "if (argc != " + arity.toString + " + 1) {\nprintf(\"error: expected " + arity.toString + " arguments.\\n\");\nreturn -1;\n}\n\n"
-    for(i <- 0 until arity) {
-      rv += "int param" + i.toString + " = atoi(argv[" + (i+1).toString + "]);\n"
-    }
-    rv += "\n"
-    rv += "int iteration_ct = solve("
-    for(i <- 0 until arity) {
-      if(i != 0) rv += ", "
-      rv += "param" + i.toString
-    }
-    for(i <- 0 until ninputs) {
-      rv += ", NULL"
-    }
-    for(i <- 0 until num_outputs) {
-      rv += ", NULL"
-    }
-    rv += ");\n\n"
-    rv += "printf(\"converged in %d iterations\\n\", iteration_ct);\n\n"
-    rv += "return 0;\n\n}\n\n"
-    rv
-  }
-*/
-
   private var codeacc: String = ""
   private def emit(code: String, repls: Tuple2[String, Sym]*) {
     var accv = code.trim
     for(r <- repls) {
-      accv = accv.replace("%" + r._1, r._2.name)
+      accv = accv.replace("$" + r._1, r._2.name)
     }
-    //if(accv.contains("%")) {
-    //  println(accv)
-    //  throw new IRValidationException()
-    //}
+    if(accv.contains("$")) {
+     println(accv)
+     throw new IRValidationException()
+    }
     codeacc += accv + "\n"
   }
 
@@ -216,20 +156,20 @@ int main(int argc, char** argv) {
     output_size = o.size
     val i = nextint
     val po = new FlatSym("output")
-    emit("for(int %i = 0; %i < %size; %i++) %po[%i] = %o[%i];",
+    emit("for(int $i = 0; $i < $size; $i++) $po[$i] = $o[$i];",
       "o" -> o, "size" -> o.size, "i" -> i, "po" -> po)
   }
 
   def print(x: VectorSym, name: String, fmt: String) {
     val i = nextint
-    emit("printf(\"" + name + " = [\");\nfor(int %i = 0; %i < %size; %i++) printf(\"" + fmt + ", \", %x[%i]);\nprintf(\"]\\n\");",
+    emit("printf(\"" + name + " = [\");\nfor(int $i = 0; $i < $size; $i++) printf(\"" + fmt + ", \", $x[$i]);\nprintf(\"]\\n\");",
       "i" -> i, "x" -> x, "size" -> x.size)
   }
 
 
   lazy val params: Seq[IntSym] = for(i <- 0 until arity) yield {
     // val rv = nextint
-    // emit("int %rv = param" + i.toString + ";", "rv" -> rv)
+    // emit("int $rv = param" + i.toString + ";", "rv" -> rv)
     // rv
     new IntSymM("params[" + i.toString + "]")
   }
@@ -251,7 +191,7 @@ int main(int argc, char** argv) {
       }
       else {
         // val rv = nextint
-        // emit("int %rv = %x + %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        // emit("int $rv = $x + $y;", "rv" -> rv, "x" -> x, "y" -> y)
         // rv
         new IntSymM("(" + x.name + " + " + y.name + ")")
       }
@@ -262,7 +202,7 @@ int main(int argc, char** argv) {
       }
       else {
         // val rv = nextint
-        // emit("int %rv = -%x;", "rv" -> rv, "x" -> x)
+        // emit("int $rv = -$x;", "rv" -> rv, "x" -> x)
         // rv
         new IntSymM("(-" + x.name + ")")
       }
@@ -286,7 +226,7 @@ int main(int argc, char** argv) {
       else {
         new IntSymM("(" + x.name + " * " + y.name + ")")
         // val rv = nextint
-        // emit("int %rv = %x * %y;", "rv" -> rv, "x" -> x, "y" -> y)
+        // emit("int $rv = $x * $y;", "rv" -> rv, "x" -> x, "y" -> y)
         // rv
       }
     }
@@ -300,14 +240,14 @@ int main(int argc, char** argv) {
       else {
         new IntSymM("(" + x.name + " / " + r.toString + ")")
         // val rv = nextint
-        // emit("int %rv = %x / " + r.toString + ";", "rv" -> rv, "x" -> x)
+        // emit("int $rv = $x / " + r.toString + ";", "rv" -> rv, "x" -> x)
         // rv
       }
     }
     implicit def int2T(x: Int): IntSym = {
       new IntSymD(x)
       // val rv = nextint
-      // emit("int %rv = " + x.toString + ";", "rv" -> rv)
+      // emit("int $rv = " + x.toString + ";", "rv" -> rv)
       // rv
     }
   }
@@ -320,15 +260,15 @@ int main(int argc, char** argv) {
     val rv = nextvector(size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = 0.0;
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = 0.0;
       """, 
       "rv" -> rv, "i" -> i, "size" -> size)
     rv
   } 
   def one: VectorSym = {
     val rv = nextvector(intlikei.int2T(1))
-    emit("double %rv[1] = {1.0};", "rv" -> rv)
+    emit("double $rv[1] = {1.0};", "rv" -> rv)
     rv
   }
   //linear operators
@@ -336,8 +276,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(arg1.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] + %y[%i];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] + $y[$i];
       """,
       "rv" -> rv, "i" -> i, "x" -> arg1, "y" -> arg2, "size" -> arg1.size)
     rv
@@ -348,14 +288,14 @@ int main(int argc, char** argv) {
     val j = nextint
     val k = nextint
     emit("""
-      double %rv[%size];
-      for(int %j = 0; %j < %size; %j++) %rv[%j] = 0.0;
-      for(int %i = 0; %i < %len; %i++) {
+      double $rv[$size];
+      for(int $j = 0; $j < $size; $j++) $rv[$j] = 0.0;
+      for(int $i = 0; $i < $len; $i++) {
       """,
       "rv" -> rv, "size" -> size, "len" -> len, "i" -> i, "j" -> j)
     val va = arg(i)
     emit("""
-      for(int %k = 0; %k < %size; %k++) %rv[%k] += %va[%k];
+      for(int $k = 0; $k < $size; $k++) $rv[$k] += $va[$k];
       }
       """,
       "rv" -> rv, "va" -> va, "size" -> size, "len" -> len, "k" -> k)
@@ -365,8 +305,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(arg.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = -%x[%i];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = -$x[$i];
       """,
       "rv" -> rv, "i" -> i, "x" -> arg, "size" -> arg.size)
     rv
@@ -374,7 +314,7 @@ int main(int argc, char** argv) {
   def scaleconstant(arg: VectorSym, scale: Double): VectorSym = {
     val rv = nextvector(arg.size)
     val i = nextint
-    emit("double %rv[%size];\nfor(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] * " + scale.toString + ";",
+    emit("double $rv[$size];\nfor(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] * " + scale.toString + ";",
       "rv" -> rv, "i" -> i, "x" -> arg, "size" -> arg.size)
     rv
   }
@@ -384,9 +324,9 @@ int main(int argc, char** argv) {
     val i = nextint
     val j = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %xsize; %i++) %rv[%i] = %x[%i];
-      for(int %j = 0; %j < %ysize; %j++) %rv[%j + %xsize] = %y[%j];
+      double $rv[$size];
+      for(int $i = 0; $i < $xsize; $i++) $rv[$i] = $x[$i];
+      for(int $j = 0; $j < $ysize; $j++) $rv[$j + $xsize] = $y[$j];
       """,
       "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1, "y" -> arg2, "i" -> i, "j" -> j)
     rv
@@ -397,14 +337,14 @@ int main(int argc, char** argv) {
     val j = nextint
     val k = nextint
     emit("""
-      double %rv[%size];
-      int %k = 0;
-      for(int %i = 0; %i < %len; %i++) {
+      double $rv[$size];
+      int $k = 0;
+      for(int $i = 0; $i < $len; $i++) {
       """,
       "rv" -> rv, "len" -> len, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
     val va = arg(i)
     emit("""
-      for(int %j = 0; %j < %vasize; %j++, %k++) %rv[%k] = %va[%j];
+      for(int $j = 0; $j < $vasize; $j++, $k++) $rv[$k] = $va[$j];
       }
       """,
       "rv" -> rv, "len" -> len, "vasize" -> va.size, "va" -> va, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
@@ -414,8 +354,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i + %at];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i + $at];
       """,
       "rv" -> rv, "x" -> arg, "at" -> at, "size" -> size, "i" -> i)
     rv
@@ -426,8 +366,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(rvsize)
     val i = nextint
     emit("""
-      double %rv[1] = {0.0};
-      for(int %i = 0; %i < %size; %i++) %rv[0] += %x[%i] * %y[%i];
+      double $rv[1] = {0.0};
+      for(int $i = 0; $i < $size; $i++) $rv[0] += $x[$i] * $y[$i];
       """,
       "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
     rv
@@ -436,8 +376,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(arg.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] * %a[0];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] * $a[0];
       """,
       "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
     rv
@@ -446,8 +386,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(arg.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = %x[%i] / %a[0];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] / $a[0];
       """,
       "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
     rv
@@ -456,15 +396,15 @@ int main(int argc, char** argv) {
   def sqrt(arg: VectorSym): VectorSym = {
     val rvsize = intlikei.int2T(1)
     val rv = nextvector(rvsize)
-    emit("double %rv[1] = { sqrt(%x[0]) };", "rv" -> rv, "x" -> arg)
+    emit("double $rv[1] = { sqrt($x[0]) };", "rv" -> rv, "x" -> arg)
     rv
   }
   def max(arg1: VectorSym, arg2: VectorSym): VectorSym = {
     val rv = nextvector(arg1.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = (%x[%i] > %y[%i]) ? %x[%i] : %y[%i];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x[$i] > $y[$i]) ? $x[$i] : $y[$i];
       """,
       "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
     rv
@@ -473,8 +413,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(arg1.size)
     val i = nextint
     emit("""
-      double %rv[%size];
-      for(int %i = 0; %i < %size; %i++) %rv[%i] = (%x[%i] < %y[%i]) ? %x[%i] : %y[%i];
+      double $rv[$size];
+      for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x[$i] < $y[$i]) ? $x[$i] : $y[$i];
       """,
       "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
     rv
@@ -484,8 +424,8 @@ int main(int argc, char** argv) {
     val rv = nextvector(rvsize)
     val i = nextint
     emit("""
-      double %rv[1] = {0.0};
-      for(int %i = 0; %i < %size; %i++) if (fabs(%x[%i]) > %rv[0]) %rv[0] = fabs(%x[%i]);
+      double $rv[1] = {0.0};
+      for(int $i = 0; $i < $size; $i++) if (fabs($x[$i]) > $rv[0]) $rv[0] = fabs($x[$i]);
       """,
       "rv" -> rv, "x" -> arg, "size" -> arg.size, "i" -> i)
     rv
@@ -496,11 +436,11 @@ int main(int argc, char** argv) {
     val i = nextint
     val j = nextint
     emit("""
-      double %rv[%osize];
-      for(int %i = 0; %i < %osize; %i++) {
-        %rv[%i] = 0.0;
-        for(int %j = 0; %j < %isize; %j++) {
-          %rv[%i] += %m[%i*%isize+%j] * %x[%j];
+      double $rv[$osize];
+      for(int $i = 0; $i < $osize; $i++) {
+        $rv[$i] = 0.0;
+        for(int $j = 0; $j < $isize; $j++) {
+          $rv[$i] += $m[$i*$isize+$j] * $x[$j];
         }
       }
       """,
@@ -512,11 +452,11 @@ int main(int argc, char** argv) {
     val i = nextint
     val j = nextint
     emit("""
-      double %rv[%osize];
-      for(int %i = 0; %i < %osize; %i++) {
-        %rv[%i] = 0.0;
-        for(int %j = 0; %j < %isize; %j++) {
-          %rv[%i] += %m[%j*%osize+%i] * %x[%j];
+      double $rv[$osize];
+      for(int $i = 0; $i < $osize; $i++) {
+        $rv[$i] = 0.0;
+        for(int $j = 0; $j < $isize; $j++) {
+          $rv[$i] += $m[$j*$osize+$i] * $x[$j];
         }
       }
       """,
@@ -560,13 +500,13 @@ int main(int argc, char** argv) {
     val rv = nextmemory
     val i = nextint
     emit("""
-      memory_t* %rv = alloca(%dim * sizeof(memory_t*)));
-      for(int %i = 0; %i < %dim; %i++) {
+      memory_t* $rv = alloca($dim * sizeof(memory_t*)));
+      for(int $i = 0; $i < $dim; $i++) {
       """,
       "rv" -> rv, "i" -> i, "dim" -> dim)
     val x = body(i)
     emit("""
-      %rv->idx[%i] = %x;
+      $rv->idx[$i] = $x;
       }
       """,
       "rv" -> rv, "i" -> i, "dim" -> dim, "x" -> x)
@@ -574,7 +514,7 @@ int main(int argc, char** argv) {
   }
   def memoryalloc(size: IntSym): MemorySym = {
     val rv = nextmemory
-    emit("memory_t* %rv = alloca(%size * sizeof(double));", "rv" -> rv, "size" -> size)
+    emit("memory_t* $rv = alloca($size * sizeof(double));", "rv" -> rv, "size" -> size)
     rv
   }
 
@@ -582,7 +522,7 @@ int main(int argc, char** argv) {
   def converge(memory: Seq[MemorySym], itermax: Int, body: (Seq[MemorySym]) => (Seq[MemorySym], VectorSym)): Seq[MemorySym] = {
     val ict = nextint
     if(itermax > 0) {
-      emit("int %ict = 0;", "ict" -> ict)
+      emit("int $ict = 0;", "ict" -> ict)
     }
     emit("while(1) {")
     isconverge = false
@@ -596,16 +536,16 @@ int main(int argc, char** argv) {
       emit("inner_loop_ct++;")
     }
     if(itermax > 0) {
-      emit("%ict++;\nif(%ict >= " + itermax.toString + ") break;", "ict" -> ict)
+      emit("$ict++;\nif($ict >= " + itermax.toString + ") break;", "ict" -> ict)
     }
-    emit("if(%cond[0] <= 0.0) break;\n}", "cond" -> cond)
+    emit("if($cond[0] <= 0.0) break;\n}", "cond" -> cond)
     isconverge = true
     newmem
   }
 
   def runfor(len: IntSym, memory: Seq[MemorySym], body: (IntSym, Seq[MemorySym]) => Seq[MemorySym]): Seq[MemorySym] = {
     val i = nextint
-    emit("for(int %i = 0; %i < %len; %i++) {", "i" -> i, "len" -> len)
+    emit("for(int $i = 0; $i < $len; $i++) {", "i" -> i, "len" -> len)
     val newmem = body(i, memory)
     if(newmem.length != memory.length) throw new IRValidationException()
     for(i <- 0 until newmem.length) {
