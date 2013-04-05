@@ -99,7 +99,7 @@ object DCPOpsTestApp extends DCPOps {
       /* here, we bind an integer to the parameter n */
       /* this just shows how parameters work; we could've just as easily used 6 in place of n in the code below */
       params(n),
-      /* this problem has no inputs */
+      /* this problem has one vector input, a */
       given(inputvector(n) -> a),
       /* this problem has two optimization variables, x and y */
       over(vector(n) -> x, vector(n) -> y), 
@@ -123,7 +123,7 @@ object DCPOpsTestApp extends DCPOps {
     val a_in: Seq[Double] = Seq(1.0, 3.0, 2.0, 4.0, 0.5)
     /* solve the problem */
     println("solving the problem in Scala...")
-    val soln = tictoc(solver.solve(n_in)(inputvectordefinite(a_in)))
+    val soln = tictoc(solver.solve(n_in)(a_in))
     /* print out the results */
     println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
@@ -135,7 +135,7 @@ object DCPOpsTestApp extends DCPOps {
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
-    val csoln = tictoc(csolver.solve(n_in)(inputvectordefinite(a_in)))
+    val csoln = tictoc(csolver.solve(n_in)(a_in))
     println("x = " + csoln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     println("y = " + csoln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
     

@@ -122,13 +122,26 @@ trait DCPOpsSolve extends DCPOpsFunction {
     }
   }
 
-  def inputscalardefinite(a: Double): MultiSeq[MatrixDefinite] = {
+  implicit def inputscalardefinite(a: Double): MultiSeq[MatrixDefinite] = {
     val amd = MatrixDefinite(1, 1, Seq(a))
     MultiSeqA0(amd)
   }
 
-  def inputvectordefinite(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
+  implicit def inputvectordefinite(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
     val amd = MatrixDefinite(as.length, 1, as)
+    MultiSeqA0(amd)
+  }
+
+  implicit def inputmatrixdefinite(as: Seq[Seq[Double]]): MultiSeq[MatrixDefinite] = {
+    val m = as.length
+    if(m < 1) throw new IRValidationException()
+    val n = as(0).length
+    if(n < 1) throw new IRValidationException()
+    for(a <- as) {
+      if(a.length != n) throw new IRValidationException()
+    }
+    val sas = as.foldLeft(Seq(): Seq[Double])((a,b) => a ++ b)
+    val amd = MatrixDefinite(m, n, sas)
     MultiSeqA0(amd)
   }
 
