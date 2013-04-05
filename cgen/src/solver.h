@@ -42,7 +42,7 @@ typedef struct solver_t {
   /* the number of matrix-valued inputs passed to the solver */
   int num_inputs;
   /* an array of length num_inputs that describes each input */
-  input_desc_t* input_descs;
+  input_desc_t** input_descs;
   /* a function that, given the parameters, returns the size of
    * the bound variables for this problem */
   int (*variable_size)(int* params);

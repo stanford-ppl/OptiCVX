@@ -5,30 +5,31 @@
 
 extern solver_t solver;
 
-input_t* read_input(FILE* f, input_desc_t desc, int* params);
-input_t* read_input_sub(FILE* f, input_desc_t desc, int* params, int n_idxs, int* idxs);
+input_t* read_input(FILE* f, input_desc_t* desc, int* params);
+input_t* read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs);
 double* read_matrix(FILE* f, matrix_shape_t shape);
 
-input_t* read_input(FILE* f, input_desc_t desc, int* params) {
+input_t* read_input(FILE* f, input_desc_t* desc, int* params) {
   /* allocate enough space on the stack for the temporary array */
-  int tmpidxs[desc.order];
+  int tmpidxs[desc->order];
   return read_input_sub(f, desc, params, 0, tmpidxs);
 }
 
-input_t* read_input_sub(FILE* f, input_desc_t desc, int* params, int n_idxs, int* idxs) {
-  if(n_idxs == desc.order) {
-    return (input_t*)read_matrix(f, desc.shape(params, idxs));
+input_t* read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs) {
+  if(n_idxs == desc->order) {
+    return (input_t*)read_matrix(f, desc->shape(params, idxs));
   }
-  int isz = desc.structure[n_idxs](params, idxs);
-  input_t** rv = malloc(isz * sizeof(input_t*));
+  int isz = desc->structure[n_idxs](params, idxs);
+  input_t* rv = malloc(isz * sizeof(input_t*));
   for(int i = 0; i < isz; i++) {
     idxs[n_idxs] = i;
-    rv[i] = read_input_sub(f, desc, params, n_idxs + 1, idxs);
+    rv->idx[i] = read_input_sub(f, desc, params, n_idxs + 1, idxs);
   }
-  return (input_t*)rv;
+  return rv;
 }
 
 double* read_matrix(FILE* f, matrix_shape_t shape) {
+  printf("reading %d x %d matrix\n", shape.domain, shape.codomain);
   double* rv = malloc(shape.domain * shape.codomain * sizeof(double));
   for(int i = 0; i < shape.domain * shape.codomain; i++) {
     const char* scanstr;

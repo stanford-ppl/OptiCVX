@@ -101,7 +101,8 @@ trait DCPOpsSolve extends DCPOpsFunction {
         System.out.write(c.toChar);
         c = in.read();
       }
-      cproc.waitFor()
+      val gccrv = cproc.waitFor()
+      if(gccrv != 0) throw new Exception("Error in compiling generated source.")
       new CvxCSolverProgram(srt.arity, vvsize)
     }
   }
@@ -123,7 +124,8 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val vvsz = vvsize.eval(pp)(IntLikeInt)
       val in = new BufferedReader(new InputStreamReader(cproc.getInputStream()))
       val vv = for(i <- 0 until vvsz) yield in.readLine().toDouble
-      cproc.waitFor()
+      val solverrv = cproc.waitFor()
+      if(solverrv != 0) throw new Exception("Error in running generated program.")
       new CvxSSolutionDefinite(pp, MultiSeqA0(vv))
     }
   }

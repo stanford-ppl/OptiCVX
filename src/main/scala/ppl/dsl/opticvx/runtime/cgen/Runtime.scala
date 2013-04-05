@@ -111,19 +111,29 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       val cdm = inputdescs(i).codomain(pps ++ iis)
       rv += "matrix_shape_t rv;\n"
       rv += "rv.domain = " + dm.name + ";\n"
-      rv += "rv.codomain = " + cdm.name + ";\n}\n\n"
+      rv += "rv.codomain = " + cdm.name + ";\n"
+      rv += "return rv;\n}\n\n"
+      rv += "int (*inputdesc_structure" + i.toString + "[])(int* params, int* idxs) = {\n"
+      for(j <- 0 until inputdescs(i).dims.length) {
+        if(j != 0) rv += ",\n"
+        rv += "structure_input" + i.toString + "_order" + j.toString
+      }
+      rv += "};\n\n"
       rv += "input_desc_t inputdesc" + i.toString + " = {\n"
       rv += ".order = " + inputdescs(i).dims.length.toString + ",\n"
-      rv += ".structure = "
-      ####NOT LEGAL SCALA SYNTAX####
-      Need to finish this part of the code.
-      Need to add finish populating the structure.
-
+      rv += ".structure = inputdesc_structure" + i.toString + ",\n"
+      rv += ".shape = shape_input" + i.toString + "};\n\n"
     }
+    rv += "input_desc_t* solver_inputdescs[] = {\n"
+    for(i <- 0 until inputdescs.length) {
+      if(i != 0) rv += ",\n"
+      rv += "&inputdesc" + i.toString
+    }
+    rv += "};\n\n"
     rv += "solver_t solver = {\n"
     rv += ".num_params = " + arity.toString + ",\n"
-    rv += ".num_inputs = 0,\n"
-    rv += ".input_descs = NULL,\n"
+    rv += ".num_inputs = " + inputdescs.length + ",\n"
+    rv += ".input_descs = solver_inputdescs,\n"
     rv += ".variable_size = variable_size,\n"
     rv += ".solve = solve};\n\n"
     rv
@@ -494,7 +504,7 @@ int main(int argc, char** argv) {
         }
       }
       """,
-      "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
     rv
   }
   def matrixmpytranspose(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {
@@ -510,7 +520,7 @@ int main(int argc, char** argv) {
         }
       }
       """,
-      "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
     rv
   }
 
@@ -518,9 +528,10 @@ int main(int argc, char** argv) {
     val rv = nextmatrix
     var emitstr: String = "double* " + rv.name + " = " + mats.name
     for(a <- at) {
-      emitstr += ".idx[" + a.name + "]"
+      emitstr += "->idx[" + a.name + "]"
     }
-    emitstr += ".vec;"
+    emitstr += "->mat;"
+    emit(emitstr)
     rv
   }
 
