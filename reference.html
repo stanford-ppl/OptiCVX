@@ -12,6 +12,8 @@ title: Reference
       <li><a href="#expressions">Affine operations on expressions</a></li>
       <li><a href="#problems">Operations used to define problems</a></li>
       <li><a href="#solvers">Operations used to solve problems</a></li>
+      <li><a href="#functions">Operations used to define functions</a></li>
+      <li><a href="#signum">Signum values and operations</a></li>
     </ul>
   </p>
   <h2><a name="symbols">Operations for declaring symbols</a></h2>
@@ -155,4 +157,124 @@ val csolver = ccodeobj.compile()
  */
 val csoln = csolver.solve(param_1, param_2, ...)(input_1, input_2, ...)
 {% endhighlight %}
+
+  <h2><a name="constraints">Operations used to define constraints</a></h2>
+    <p>Constraints are used as part of a problem or function definition.  The following operations generate constraints.</p>
+{% highlight scala %}
+/* equality constraint for expressions x and y */
+x == y
+/* inequality constraint for scalar expressions x and y */
+x <= y
+x >= y
+/* second order cone constraint for vector expression x and scalar expression y
+ * this is mathematically equivalent to norm(x) <= y
+ */
+in_secondorder_cone(x,y)
+/* constraints based on a parameter
+ * this means: for each i from 0..(len-1), constrain f(i)
+ */
+cfor(len)((i) => f(i))
+{% endhighlight %}
+
+  <h2><a name="functions">Operations used to define functions</a></h2>
+    <p>OptiCVX also supports user definition of custom convex/concave functions.  These functions can then be composed
+      with one another in accordance with the DCP ruleset.  Functions are defined as follows:</p>
+
+{% highlight scala %}
+/* here, we define the function */
+val function_name = {
+  /* first, we declare the symbols that are to be associated with this function */
+  /* this is necessary so that the scala typing works out */
+  val symbol_1 = cvxexpr
+  val symbol_2 = cvxexpr
+  ...
+  /* next, define the function proper */
+  cvxfun(
+    /* define the parameters taken by the function */
+    params(m, n, p, q, ...),
+    /* define the matrix-valued inputs taken by this function
+     * this is distinct from the expression arguments taken
+     * for now, functions taking inputs is not well supported, so it
+     * is best to leave this section empty
+     */
+    given(a_shape -> a, b_shape -> b, ...),
+    /* define the arguments taken by this function */
+    args(x_shape -> x, y_shape -> y, ...),
+    /* define the sign of this function, as a signum expression
+     * we can use x.sign, y.sign, ... as inputs where x, y, ...
+     * are the argument symbols defined above
+     */
+    sign(sign_signum),
+    /* define the monotonicy of this function in each variable */
+    tonicity(tonicity_in_x, tonicity_in_y, ...),
+    /* define the vexity of this function */
+    vexity(vexity_signum),
+    /* define the dependent variables of the function */
+    over(u_shape -> u, v_shape -> y, ...),
+    /* here we can bind symbols to expressions of the previous variables */
+    let(z_expr -> z, ...),
+    /* constraints for this function */
+    where(
+      constraint_1,
+      constraint_2,
+      ...
+    ),
+    /* the objective (and output of the function) is to minimize some expression */
+    minimize(objective_expression)
+  )
+}
+{% endhighlight %}
+
+  <p>We will defer a discussion of signum values until the next section.  Once you define a function, you can use
+    it as follows:</p>
+
+{% highlight scala %}
+/* apply a function to an expression (returns an expression) */
+function_name(param_1, param_2, ...)(arg_1, arg_2, ...)
+/* for functions with no parameters, we can shorten this to */
+function_name(arg_1, arg_2, ...)
+{% endhighlight %}
+
+  <h2><a name="signum">Signum values and operations</a></h2>
+    <p>In OptiCVX, a signum value refers to the possible sign of an expression.  There are four signum values:
+      <ul>
+        <li><em>Zero</em> (the set containing zero)</li>
+        <li><em>Nonnegative</em> (the set containing all nonnegative numbers)</li>
+        <li><em>Nonpositive</em> (the set containing all nonpositive numbers)</li>
+        <li><em>None</em> (the set containing all numbers)</li>
+      </ul>
+      We extend the notions of addition, negation, and multiplication to work with these sets.  Now, note that
+      the sign, monotonicity, and convexity of a DCP function can be described using a signum value.  For example,
+      for convexity we say:
+      <ul>
+        <li>An affine function has vexity <em>zero</em>.</li>
+        <li>A convex function has vexity <em>nonnegative</em>.</li>
+        <li>A concave function has vexity <em>nonpositive</em>.</li>
+        <li>A nonconcave, nonconvex function has vexity <em>none</em>.</li>
+      </ul>
+      In OptiCVX, we restrict ourselves to DCP functions which can express their sign, monotonicty, and convexity
+      as signums as a function of the signs of their arguments.  This encompasses a wide class of functions.
+    </p>
+    <p>The following operations are supported on Signum values.</p>
+{% highlight scala %}
+/* a zero-signum constant */
+zero
+/* a nonnegative-signum constant */
+nonnegative
+positive
+/* a nonpositive-signum constant */
+nonpositive
+negative
+/* a none-singum constant */
+none
+/* sum of two signum values */
+S + T
+/* negation of a signum value */
+-S
+/* product of two signum values */
+S * T
+/* get the signum of an input argument x to a function */
+x.sign
+{% endhighlight %}
+
 </section>
