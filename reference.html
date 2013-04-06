@@ -11,6 +11,7 @@ title: Reference
       <li><a href="#params">Operations on integers</a></li>
       <li><a href="#expressions">Affine operations on expressions</a></li>
       <li><a href="#problems">Operations used to define problems</a></li>
+      <li><a href="#solvers">Operations used to solve problems</a></li>
     </ul>
   </p>
   <h2><a name="symbols">Operations for declaring symbols</a></h2>
@@ -21,6 +22,8 @@ title: Reference
 val n = cvxparam
 /* declare an expression symbol x */
 val x = cvxexpr
+/* declare an input symbol a */
+val a = cvxinput
 {% endhighlight %}
 
   <h2><a name="params">Operations on integers</a></h2>
@@ -74,7 +77,7 @@ x.sum
 sumfor(x.size)((i) => x(i))
 /* concatenation based on a parameter */
 /* the following example duplicates each element of vector x */
-catfor(x.size)((i) => cat(x(i), x(i)))
+xfor(x.size)((i) => cat(x(i), x(i)))
 {% endhighlight %}
 
   <h2><a name="problems">Operations used to define problems</a></h2>
@@ -85,8 +88,8 @@ catfor(x.size)((i) => cat(x(i), x(i)))
 val prob = problem(
   /* define the input parameters to the problem, as a list of parameter symbols */
   params(n, m, p, ...),
-  /* here is where floating-point inputs would be declared (not well supported yet) */
-  given(),
+  /* declare  matrix-valued inputs would be declared */
+  given(a_shape -> a, b_shape -> b, ...),
   /* define the problem variables, as a list of shape -> symbol pairs */
   over(x_shape -> x, y_shape -> y, ...), 
   /* here we can bind symbols to expressions of the previous variables */
@@ -103,5 +106,53 @@ val prob = problem(
   )
 )
 {% endhighlight %}
+    <p>Notice that for given inputs and problem variables, a shape parameter must be specified.  For given inputs,
+      use the following:</p>
+{% highlight scala %}
+/* define a scalar-valued input */
+inputscalar
+/* define a vector-valued input of length n */
+inputvector(n)
+/* define a m by n matrix-valued input */
+inputmatrix(m, n)
+{% endhighlight %}
+    <p>Similarly, for problem variables, use the following:</p>
+{% highlight scala %}
+/* define a scalar-valued variable */
+scalar
+/* define a vector-valued variable of length n */
+vector(n)
+{% endhighlight %}
 
+  <h2><a name="solvers">Operations used to solve problems</a></h2>
+    <p>Once you have defined a problem, you can use OptiCVX to solve the problem.  Currently, OptiCVX supports two
+      main methods of running solvers.  Firstly, you can emulate the solver directly within the running Scala process.
+      Secondly, you can direct OptiCVX to generate C code that implements the solver, and then pass data inputs to
+      that program.</p>
+{% highlight scala %}
+/* generate a solver */
+/* this solver uses the PrimalDualOperatorSplitting method */
+/* OptiCVX may support other solvers as well (see section on solvers) */
+val solver = prob.gen(PrimalDualOperatorSplitting)
+/* solve a problem in Scala */
+/* parameters must be passed as integers */
+/* inputs can be passed as either:
+ *   Double (scalar)
+ *   Seq[Double] (vector)
+ *   Seq[Seq[Double]] (matrix)
+ */
+val soln = solver.solve(param_1, param_2, ...)(input_1, input_2, ...)
+/* get the value of expression x in this solution
+ * here, x_soln will have type Seq[Double]
+ */
+val x_soln = soln.resolve(x)
+/* generate code for the solver in C */
+val ccodeobj = solver.cgen()
+/* compile the code using gcc */
+val csolver = ccodeobj.compile()
+/* run the generated C code
+ * this produces a solution of the same form as the solution above
+ */
+val csoln = csolver.solve(param_1, param_2, ...)(input_1, input_2, ...)
+{% endhighlight %}
 </section>
