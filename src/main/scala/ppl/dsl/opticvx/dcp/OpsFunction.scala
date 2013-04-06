@@ -78,7 +78,9 @@ trait DCPOpsFunction extends DCPOpsExpr {
   }
 
   def positive: SignumPoly = SignumPoly.const(Signum.Positive, globalSignumArity)
+  def nonnegative: SignumPoly = SignumPoly.const(Signum.Positive, globalSignumArity)
   def negative: SignumPoly = SignumPoly.const(Signum.Negative, globalSignumArity)
+  def nonpositive: SignumPoly = SignumPoly.const(Signum.Negative, globalSignumArity)
   def zero: SignumPoly = SignumPoly.const(Signum.Zero, globalSignumArity)
   def none: SignumPoly = SignumPoly.const(Signum.All, globalSignumArity)
 
