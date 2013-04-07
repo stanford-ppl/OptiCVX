@@ -47,7 +47,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val srt = SolverRuntimeDefinite
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
-      new CvxSSolutionDefinite(spp, vv(0))
+      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count)
     }
     def cgen(): CvxSSolverCGen = {
       val srt = new SolverRuntimeCGen(solver.arity)
@@ -110,9 +110,12 @@ trait DCPOpsSolve extends DCPOpsFunction {
       outw.close()
       val in = new BufferedReader(new InputStreamReader(cproc.getInputStream()))
       val vv = for(i <- 0 until vvsz) yield in.readLine().toDouble
+      val Array(iterlabel: String, siterct: String) = in.readLine().split(" ")
+      if(iterlabel != "iterations:") throw new Exception("Expected iteration count label.")
+      val iterct: Int = siterct.toInt
       val solverrv = cproc.waitFor()
       if(solverrv != 0) throw new Exception("Error in running generated program.")
-      new CvxSSolutionDefinite(pp, MultiSeqA0(vv))
+      new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct)
     }
   }
 
@@ -139,11 +142,12 @@ trait DCPOpsSolve extends DCPOpsFunction {
     MultiSeqA0(amd)
   }
 
-  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]]) {
+  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int) {
     def resolve(x: CvxExprSymbol): Seq[Double] = {
       val srt = SolverRuntimeDefinite
       x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))
     }
+    def num_iterations: Int = itercount
   }
 
   def problem(

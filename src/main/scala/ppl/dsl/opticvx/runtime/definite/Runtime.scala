@@ -138,31 +138,21 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
     MultiSeqA0(for(i <- 0 until size) yield 0.0)
   }
 
-  var converge_iter_count: Int = -1
+  var converge_iter_count: Int = 0
   def converge(memory: Seq[MultiSeq[Seq[Double]]], itermax: Int, body: (Seq[MultiSeq[Seq[Double]]]) => (Seq[MultiSeq[Seq[Double]]], Seq[Double])): Seq[MultiSeq[Seq[Double]]] = {
     var m = memory
     var cond: Boolean = true
-    val is_outerloop: Boolean = (converge_iter_count == -1)
-    if(is_outerloop) {
-      converge_iter_count = 0
-    }
     var i = 0
     while(cond && ((itermax == -1)||(i < itermax))) {
+      val old_iter_count: Int = converge_iter_count
       val (nm, v) = body(m)
       if(v.length != 1) throw new IRValidationException()
       cond = (v(0) > 0.0)
       m = nm
-      if(!is_outerloop) {
+      if(old_iter_count == converge_iter_count) {
         converge_iter_count += 1
       }
-      else {
-        //println(v(0))
-      }
       i += 1
-    }
-    if(is_outerloop) {
-      println("converged in " + converge_iter_count.toString + " iterations")
-      converge_iter_count = -1
     }
     m
   }
