@@ -19,8 +19,16 @@ class IntSymD(val c: Int) extends IntSym {
   def name: String = c.toString
 }
 class IntSymM(val name: String) extends IntSym
-class VectorSym(val i: Int, val size: IntSym) extends Sym {
+trait VectorSym {
+  val size: IntSym
+  def at(idx: IntSym): Sym
+}
+class VectorSymL(val i: Int, val size: IntSym) extends Sym with VectorSym {
   def name: String = "x" + i.toString
+  def at(idx: IntSym): Sym = new FlatSym("x" + i.toString + "[" + idx.name + "]")
+}
+class VectorSymFlat(val vss: String, val size: IntSym) extends VectorSym {
+  def at(idx: IntSym): Sym = new FlatSym(vss.replace("$", idx.name))
 }
 class MemorySym(val i: Int) extends Sym {
   private var valid: Boolean = true
@@ -49,9 +57,9 @@ class SolverRuntimeCGen(val arity: Int) extends SolverRuntime[IntSym, MatrixSym,
     new IntSymL(intsym_ni)
   }
   private var vectorsym_ni: Int = 0
-  private def nextvector(size: IntSym): VectorSym = {
+  private def nextvector(size: IntSym): VectorSymL = {
     vectorsym_ni += 1
-    new VectorSym(vectorsym_ni, size)
+    new VectorSymL(vectorsym_ni, size)
   }
   private var memorysym_ni: Int = 0
   private def nextmemory: MemorySym = {
@@ -156,14 +164,14 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     output_size = o.size
     val i = nextint
     val po = new FlatSym("output")
-    emit("for(int $i = 0; $i < $size; $i++) $po[$i] = $o[$i];",
-      "o" -> o, "size" -> o.size, "i" -> i, "po" -> po)
+    emit("for(int $i = 0; $i < $size; $i++) $po[$i] = $o;",
+      "o" -> o.at(i), "size" -> o.size, "i" -> i, "po" -> po)
   }
 
   def print(x: VectorSym, name: String, fmt: String) {
     val i = nextint
-    emit("printf(\"" + name + " = [\");\nfor(int $i = 0; $i < $size; $i++) printf(\"" + fmt + ", \", $x[$i]);\nprintf(\"]\\n\");",
-      "i" -> i, "x" -> x, "size" -> x.size)
+    emit("printf(\"" + name + " = [\");\nfor(int $i = 0; $i < $size; $i++) printf(\"" + fmt + ", \", $x);\nprintf(\"]\\n\");",
+      "i" -> i, "x" -> x.at(i), "size" -> x.size)
   }
 
 
@@ -257,30 +265,33 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
   //base objects
   def size(arg: VectorSym): IntSym = arg.size
   def zero(size: IntSym): VectorSym = {
-    val rv = nextvector(size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = 0.0;
-      """, 
-      "rv" -> rv, "i" -> i, "size" -> size)
-    rv
+    // val rv = nextvector(size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = 0.0;
+    //   """, 
+    //   "rv" -> rv, "i" -> i, "size" -> size)
+    // rv
+    new VectorSymFlat("0.0", size)
   } 
   def one: VectorSym = {
-    val rv = nextvector(intlikei.int2T(1))
-    emit("double $rv[1] = {1.0};", "rv" -> rv)
-    rv
+    // val rv = nextvector(intlikei.int2T(1))
+    // emit("double $rv[1] = {1.0};", "rv" -> rv)
+    // rv
+    new VectorSymFlat("1.0", intlikei.int2T(1))
   }
   //linear operators
   def sum(arg1: VectorSym, arg2: VectorSym): VectorSym = {
-    val rv = nextvector(arg1.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] + $y[$i];
-      """,
-      "rv" -> rv, "i" -> i, "x" -> arg1, "y" -> arg2, "size" -> arg1.size)
-    rv
+    // val rv = nextvector(arg1.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = $x + $y;
+    //   """,
+    //   "rv" -> rv, "i" -> i, "x" -> arg1.at(i), "y" -> arg2.at(i), "size" -> arg1.size)
+    // rv
+    new VectorSymFlat("(" + arg1.at(new IntSymM("$")).name + " + " + arg2.at(new IntSymM("$")).name + ")", arg1.size)
   }
   def sumfor(len: IntSym, size: IntSym, arg: (IntSym => VectorSym)): VectorSym = {
     val rv = nextvector(size)
@@ -295,28 +306,30 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       "rv" -> rv, "size" -> size, "len" -> len, "i" -> i, "j" -> j)
     val va = arg(i)
     emit("""
-      for(int $k = 0; $k < $size; $k++) $rv[$k] += $va[$k];
+      for(int $k = 0; $k < $size; $k++) $rv[$k] += $va;
       }
       """,
-      "rv" -> rv, "va" -> va, "size" -> size, "len" -> len, "k" -> k)
+      "rv" -> rv, "va" -> va.at(k), "size" -> size, "len" -> len, "k" -> k)
     return rv
   }
   def neg(arg: VectorSym): VectorSym = {
-    val rv = nextvector(arg.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = -$x[$i];
-      """,
-      "rv" -> rv, "i" -> i, "x" -> arg, "size" -> arg.size)
-    rv
+    // val rv = nextvector(arg.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = -$x;
+    //   """,
+    //   "rv" -> rv, "i" -> i, "x" -> arg.at(i), "size" -> arg.size)
+    // rv
+    new VectorSymFlat("(-" + arg.at(new IntSymM("$")).name + ")", arg.size)
   }
   def scaleconstant(arg: VectorSym, scale: Double): VectorSym = {
-    val rv = nextvector(arg.size)
-    val i = nextint
-    emit("double $rv[$size];\nfor(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] * " + scale.toString + ";",
-      "rv" -> rv, "i" -> i, "x" -> arg, "size" -> arg.size)
-    rv
+    // val rv = nextvector(arg.size)
+    // val i = nextint
+    // emit("double $rv[$size];\nfor(int $i = 0; $i < $size; $i++) $rv[$i] = $x * " + scale.toString + ";",
+    //   "rv" -> rv, "i" -> i, "x" -> arg.at(i), "size" -> arg.size)
+    // rv
+    new VectorSymFlat("(" + arg.at(new IntSymM("$")).name + " * " + scale.toString + ")", arg.size)
   }
   def cat(arg1: VectorSym, arg2: VectorSym): VectorSym = {
     val irv = intlikei.add(arg1.size, arg2.size)
@@ -325,10 +338,10 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     val j = nextint
     emit("""
       double $rv[$size];
-      for(int $i = 0; $i < $xsize; $i++) $rv[$i] = $x[$i];
-      for(int $j = 0; $j < $ysize; $j++) $rv[$j + $xsize] = $y[$j];
+      for(int $i = 0; $i < $xsize; $i++) $rv[$i] = $x;
+      for(int $j = 0; $j < $ysize; $j++) $rv[$j + $xsize] = $y;
       """,
-      "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1, "y" -> arg2, "i" -> i, "j" -> j)
+      "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1.at(i), "y" -> arg2.at(j), "i" -> i, "j" -> j)
     rv
   }
   def catfor(len: IntSym, size: IntSym, arg: (IntSym => VectorSym)): VectorSym = {
@@ -344,21 +357,22 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       "rv" -> rv, "len" -> len, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
     val va = arg(i)
     emit("""
-      for(int $j = 0; $j < $vasize; $j++, $k++) $rv[$k] = $va[$j];
+      for(int $j = 0; $j < $vasize; $j++, $k++) $rv[$k] = $va;
       }
       """,
-      "rv" -> rv, "len" -> len, "vasize" -> va.size, "va" -> va, "i" -> i, "j" -> j, "k" -> k, "size" -> size)
+      "rv" -> rv, "len" -> len, "vasize" -> va.size, "va" -> va.at(j), "i" -> i, "j" -> j, "k" -> k, "size" -> size)
     rv
   }
   def slice(arg: VectorSym, at: IntSym, size: IntSym): VectorSym = {
-    val rv = nextvector(size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i + $at];
-      """,
-      "rv" -> rv, "x" -> arg, "at" -> at, "size" -> size, "i" -> i)
-    rv
+    // val rv = nextvector(size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = $x;
+    //   """,
+    //   "rv" -> rv, "x" -> arg.at(intlikei.add(i, at)), "at" -> at, "size" -> size, "i" -> i)
+    // rv
+    new VectorSymFlat("(" + arg.at(new IntSymM("($ + " + at.name + ")")).name + ")", size)
   }
   //nonlinear operators
   def dot(arg1: VectorSym, arg2: VectorSym): VectorSym = {
@@ -367,57 +381,61 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     val i = nextint
     emit("""
       double $rv[1] = {0.0};
-      for(int $i = 0; $i < $size; $i++) $rv[0] += $x[$i] * $y[$i];
+      for(int $i = 0; $i < $size; $i++) $rv[0] += $x * $y;
       """,
-      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
+      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1.at(i), "y" -> arg2.at(i))
     rv
   }
   def mpy(arg: VectorSym, scale: VectorSym): VectorSym = {
-    val rv = nextvector(arg.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] * $a[0];
-      """,
-      "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
-    rv
+    // val rv = nextvector(arg.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = $x * $a;
+    //   """,
+    //   "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg.at(i), "a" -> scale.at(intlikei.int2T(0)))
+    // rv
+    new VectorSymFlat("(" + arg.at(new IntSymM("$")).name + " * " + scale.at(intlikei.int2T(0)).name + ")", arg.size)
   }
   def div(arg: VectorSym, scale: VectorSym): VectorSym = {
-    val rv = nextvector(arg.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = $x[$i] / $a[0];
-      """,
-      "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg, "a" -> scale)
-    rv
+    // val rv = nextvector(arg.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = $x / $a;
+    //   """,
+    //   "rv" -> rv, "size" -> arg.size, "i" -> i, "x" -> arg.at(i), "a" -> scale.at(intlikei.int2T(0)))
+    // rv
+    new VectorSymFlat("(" + arg.at(new IntSymM("$")).name + " / " + scale.at(intlikei.int2T(0)).name + ")", arg.size)
   }
   def norm2(arg: VectorSym): VectorSym = dot(arg, arg)
   def sqrt(arg: VectorSym): VectorSym = {
     val rvsize = intlikei.int2T(1)
     val rv = nextvector(rvsize)
-    emit("double $rv[1] = { sqrt($x[0]) };", "rv" -> rv, "x" -> arg)
+    emit("double $rv[1] = { sqrt($x) };", "rv" -> rv, "x" -> arg.at(intlikei.int2T(0)))
     rv
   }
   def max(arg1: VectorSym, arg2: VectorSym): VectorSym = {
-    val rv = nextvector(arg1.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x[$i] > $y[$i]) ? $x[$i] : $y[$i];
-      """,
-      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
-    rv
+    // val rv = nextvector(arg1.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x > $y) ? $x : $y;
+    //   """,
+    //   "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1.at(i), "y" -> arg2.at(i))
+    // rv
+    new VectorSymFlat("fmax(" + arg1.at(new IntSymM("$")).name + ", " + arg2.at(new IntSymM("$")).name + ")", arg1.size)
   }
   def min(arg1: VectorSym, arg2: VectorSym): VectorSym = {
-    val rv = nextvector(arg1.size)
-    val i = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x[$i] < $y[$i]) ? $x[$i] : $y[$i];
-      """,
-      "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1, "y" -> arg2)
-    rv
+    // val rv = nextvector(arg1.size)
+    // val i = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $size; $i++) $rv[$i] = ($x < $y) ? $x : $y;
+    //   """,
+    //   "rv" -> rv, "i" -> i, "size" -> arg1.size, "x" -> arg1.at(i), "y" -> arg2.at(i))
+    // rv
+    new VectorSymFlat("fmin(" + arg1.at(new IntSymM("$")).name + ", " + arg2.at(new IntSymM("$")).name + ")", arg1.size)
   }
   def norm_inf(arg: VectorSym): VectorSym = {
     val rvsize = intlikei.int2T(1)
@@ -425,9 +443,9 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     val i = nextint
     emit("""
       double $rv[1] = {0.0};
-      for(int $i = 0; $i < $size; $i++) if (fabs($x[$i]) > $rv[0]) $rv[0] = fabs($x[$i]);
+      for(int $i = 0; $i < $size; $i++) if (fabs($x) > $rv[0]) $rv[0] = fabs($x);
       """,
-      "rv" -> rv, "x" -> arg, "size" -> arg.size, "i" -> i)
+      "rv" -> rv, "x" -> arg.at(i), "size" -> arg.size, "i" -> i)
     rv
   }
 
@@ -440,11 +458,11 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       for(int $i = 0; $i < $osize; $i++) {
         $rv[$i] = 0.0;
         for(int $j = 0; $j < $isize; $j++) {
-          $rv[$i] += $m[$i*$isize+$j] * $x[$j];
+          $rv[$i] += $m[$i*$isize+$j] * $x;
         }
       }
       """,
-      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
     rv
   }
   def matrixmpytranspose(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {
@@ -456,11 +474,11 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       for(int $i = 0; $i < $osize; $i++) {
         $rv[$i] = 0.0;
         for(int $j = 0; $j < $isize; $j++) {
-          $rv[$i] += $m[$j*$osize+$i] * $x[$j];
+          $rv[$i] += $m[$j*$osize+$i] * $x;
         }
       }
       """,
-      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x)
+      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
     rv
   }
 
@@ -487,11 +505,18 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
   }
 
   def vectorset(src: VectorSym, vecs: MemorySym, at: Seq[IntSym]): MemorySym = {
-    var emitstr: String = "memcpy(" + vecs.name
+    val j = nextint
+    val i = nextint
+    val v = nextvector(src.size)
+    var emitstr: String = "double " + v.name + "[" + src.size.name + "];\n"
+    emitstr += "for(int " + j.name + " = 0; " + j.name + " < " + src.size.name + "; " + j.name + "++) "
+    emitstr += v.name + "[" + j.name + "] = " + src.at(j).name + ";\n"
+    emitstr += "for(int " + i.name + " = 0; " + i.name + " < " + src.size.name + "; " + i.name + "++) "
+    emitstr += vecs.name
     for(i <- at) {
       emitstr += "->idx[" + i.name + "]"
     }
-    emitstr += "->vec, " + src.name + ", " + src.size.name + " * sizeof(double));"
+    emitstr += "->vec[" + i.name + "] = " + v.at(i).name + ";\n"
     emit(emitstr)
     vecs.copyinvalidate
   }
@@ -538,7 +563,7 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     if(itermax > 0) {
       emit("$ict++;\nif($ict >= " + itermax.toString + ") break;", "ict" -> ict)
     }
-    emit("if($cond[0] <= 0.0) break;\n}", "cond" -> cond)
+    emit("if($cond <= 0.0) break;\n}", "cond" -> cond.at(intlikei.int2T(0)))
     isconverge = true
     newmem
   }
