@@ -75,14 +75,8 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
         Array[String]("bash", "-c", "gcc --std=gnu99 -O1 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"),
-        Array[String](),
+        null,
         new File("cgen"))
-      val in = cproc.getErrorStream()
-      var c: Int = in.read()
-      while (c != -1) {
-        System.out.write(c.toChar);
-        c = in.read();
-      }
       val gccrv = cproc.waitFor()
       if(gccrv != 0) throw new Exception("Error in compiling generated source.")
       new CvxCSolverProgram(srt.arity, numinputs, vvsize)
@@ -102,7 +96,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
         argarray,
-        Array[String](),
+        null,
         new File("cgen"))
       val vvsz = vvsize.eval(pp)(IntLikeInt)
       val outw = new OutputStreamWriter(cproc.getOutputStream())
