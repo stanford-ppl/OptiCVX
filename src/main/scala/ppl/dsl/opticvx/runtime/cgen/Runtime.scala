@@ -332,17 +332,20 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
     new VectorSymFlat("(" + arg.at(new IntSymM("$")).name + " * " + scale.toString + ")", arg.size)
   }
   def cat(arg1: VectorSym, arg2: VectorSym): VectorSym = {
-    val irv = intlikei.add(arg1.size, arg2.size)
-    val rv = nextvector(irv)
-    val i = nextint
-    val j = nextint
-    emit("""
-      double $rv[$size];
-      for(int $i = 0; $i < $xsize; $i++) $rv[$i] = $x;
-      for(int $j = 0; $j < $ysize; $j++) $rv[$j + $xsize] = $y;
-      """,
-      "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1.at(i), "y" -> arg2.at(j), "i" -> i, "j" -> j)
-    rv
+    // val irv = intlikei.add(arg1.size, arg2.size)
+    // val rv = nextvector(irv)
+    // val i = nextint
+    // val j = nextint
+    // emit("""
+    //   double $rv[$size];
+    //   for(int $i = 0; $i < $xsize; $i++) $rv[$i] = $x;
+    //   for(int $j = 0; $j < $ysize; $j++) $rv[$j + $xsize] = $y;
+    //   """,
+    //   "rv" -> rv, "size" -> irv, "xsize" -> arg1.size, "ysize" -> arg2.size, "x" -> arg1.at(i), "y" -> arg2.at(j), "i" -> i, "j" -> j)
+    // rv
+    new VectorSymFlat(
+      "(($ < " + arg1.size.name + ") ? " + arg1.at(new IntSymM("$")).name + " : " + arg2.at(new IntSymM("($ - " + arg1.size.name + ")")).name + ")", 
+      intlikei.add(arg1.size, arg2.size))
   }
   def catfor(len: IntSym, size: IntSym, arg: (IntSym => VectorSym)): VectorSym = {
     val rv = nextvector(size)
