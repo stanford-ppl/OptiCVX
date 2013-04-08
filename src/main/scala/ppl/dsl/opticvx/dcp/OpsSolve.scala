@@ -74,7 +74,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       fwriter.close()
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
-        Array[String]("bash", "-c", "gcc --std=gnu99 -Ofast -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"),
+        Array[String]("bash", "-c", "gcc --std=gnu99 -O3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"),
         null,
         new File("cgen"))
       val gccrv = cproc.waitFor()
