@@ -8,7 +8,7 @@ import scala.collection.immutable.Seq
 
 object PrimalDualSubgradient extends SolverGen {
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone) {
+  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
     val varSize = A.domain
     val affineCstrtSize = A.codomain
     val coneSize = F.codomain
@@ -40,7 +40,7 @@ object PrimalDualSubgradient extends SolverGen {
     pvFxg := Fxg - cone.project(Fxg)
     pvy := y - cone.conj.project(y)
     J := norm2(cTxbTvgTy) + norm2(Axb) + norm2(ATvFTyc) + norm2(pvFxg) + norm2(pvy)
-    converge(J - 1e-6) {
+    converge(J - norm2(tol)) {
       GJx := c*cTxbTvgTy + A.T*Axb + F.T*pvFxg
       GJy := g*cTxbTvgTy + F*ATvFTyc + pvy
       GJv := b*cTxbTvgTy + A*ATvFTyc

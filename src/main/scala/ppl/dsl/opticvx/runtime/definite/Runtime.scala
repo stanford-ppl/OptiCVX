@@ -44,7 +44,7 @@ case class MatrixDefinite(m: Int, n: Int, data: Seq[Double]) {
   }
 }
 
-object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]] {
+class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]] {
   //INTEGER OPERATIONS
   def intlikei: IntLike[Int] = IntLikeInt
 
@@ -116,6 +116,7 @@ object SolverRuntimeDefinite extends SolverRuntime[Int, MatrixDefinite, MultiSeq
     if(arg1.length != arg2.length) throw new IRValidationException()
     for (i <- 0 until arg1.length) yield scala.math.min(arg1(i), arg2(i))
   }
+  def tolerance(): Seq[Double] = Seq(tol)
 
 
   def matrixmpy(m: MatrixDefinite, osize: Int, x: Seq[Double]): Seq[Double] = m.mmpy(x)

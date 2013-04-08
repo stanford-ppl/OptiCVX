@@ -121,14 +121,15 @@ object DCPOpsTestApp extends DCPOps {
     /* define variables to store the inputs we'll pass to the solver */
     val n_in: Int = 10
     val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+    val tol: Double = 1e-3
     /* this section of the code is commented out because running in scala is slow */
     // /* solve the problem */
     // println("solving the problem in Scala...")
-    // val soln = tictoc(solver.solve(n_in)(a_in))
+    // val soln = tictoc(solver.solve(n_in)(a_in)(tol))
     // /* print out the results */
     // println("converged in " + soln.num_iterations + " iterations")
-    // println("x = " + soln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    // println("y = " + soln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    // println("x = " + soln.resolve(x).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
+    // println("y = " + soln.resolve(y).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.cgen())
@@ -137,11 +138,11 @@ object DCPOpsTestApp extends DCPOps {
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
     println("solving the problem in C...")
-    val csoln = tictoc(csolver.solve(n_in)(a_in))
+    val csoln = tictoc(csolver.solve(n_in)(a_in)(tol))
     /* print out the results */
     println("converged in " + csoln.num_iterations + " iterations")
-    println("x = " + csoln.resolve(x).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
-    println("y = " + csoln.resolve(y).map(d => "%1.3f" format d).mkString("[", ", ", "]"))
+    println("x = " + csoln.resolve(x).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
+    println("y = " + csoln.resolve(y).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
     
   }
 }

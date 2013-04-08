@@ -63,14 +63,16 @@ double* read_matrix(FILE* f, matrix_shape_t shape) {
 }
 
 int main(int argc, char** argv) {
-  if (argc != solver.num_params + 1) {
+  if (argc != solver.num_params + 2) {
     printf("error: expected %d arguments.\n", solver.num_params);
     return -1;
   }
 
+  double tolerance = atof(argv[1]);
+
   int params[solver.num_params];
   for(int i = 0; i < solver.num_params; i++) {
-    params[i] = atoi(argv[i+1]);
+    params[i] = atoi(argv[i+2]);
   }
 
   input_t* inputs[solver.num_inputs];
@@ -80,7 +82,7 @@ int main(int argc, char** argv) {
 
   int problem_size = solver.variable_size(params);
   double output[problem_size];
-  solution_t solution = solver.solve(params, inputs, output);
+  solution_t solution = solver.solve(params, inputs, output, tolerance);
 
   for(int i = 0; i < problem_size; i++) {
     printf("%g\n", output[i]);

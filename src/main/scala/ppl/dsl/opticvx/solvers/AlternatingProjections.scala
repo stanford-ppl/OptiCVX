@@ -9,7 +9,7 @@ import scala.collection.immutable.Seq
 object AlternatingProjections extends SolverGenUtil {
 
 
-  def code(Ai: Almap, bi: AVector, Fi: Almap, gi: AVector, ci: AVector, cone: Cone) {
+  def code(Ai: Almap, bi: AVector, Fi: Almap, gi: AVector, ci: AVector, cone: Cone, tol: AVector) {
     val varSize = Ai.domain
     val affineCstrtSize = Ai.codomain
     val coneSize = Fi.codomain
@@ -52,7 +52,7 @@ object AlternatingProjections extends SolverGenUtil {
     p := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize + 2))
     q := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize + 2))
 
-    converge(sqrt(norm2(M*x)) - 1e-3) {
+    converge(sqrt(norm2(M*x)) - tol) {
       //converge(Mproj.residual) {
       //  y := Mproj.proj(y)
       //}

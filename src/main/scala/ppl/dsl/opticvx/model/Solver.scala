@@ -31,6 +31,8 @@ trait SolverRuntime[I, M, N, V, W] {
   def min(arg1: V, arg2: V): V
   def norm_inf(arg: V): V
 
+  def tolerance(): V
+
 
   def matrixmpy(m: M, osize: I, x: V): V
   def matrixmpytranspose(m: M, osize: I, x: V): V

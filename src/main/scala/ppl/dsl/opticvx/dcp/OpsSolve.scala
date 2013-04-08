@@ -40,14 +40,14 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   class CvxSSolver(val solver: Solver) {
-    def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
+    def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*)(tolerance: Double): CvxSSolutionDefinite = {
       if(pp.length != solver.arity) throw new IRValidationException()
       if(ins.length != solver.input.args.length) throw new IRValidationException()
       val spp: Seq[Int] = Seq(pp:_*)
-      val srt = SolverRuntimeDefinite
+      val srt = new SolverRuntimeDefinite(tolerance)
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
-      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count)
+      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, tolerance)
     }
     def cgen(): CvxSSolverCGen = {
       val srt = new SolverRuntimeCGen(solver.arity)
@@ -84,14 +84,15 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   class CvxCSolverProgram(val arity: Int, val numinputs: Int, val vvsize: IRPoly) {
-    def solve(params: Int*)(ins: MultiSeq[MatrixDefinite]*): CvxSSolutionDefinite = {
+    def solve(params: Int*)(ins: MultiSeq[MatrixDefinite]*)(tolerance: Double): CvxSSolutionDefinite = {
       val pp = Seq(params:_*)
       if(pp.length != arity) throw new IRValidationException()
       if(ins.length != numinputs) throw new IRValidationException()
-      val argarray: Array[String] = new Array[String](1 + pp.length)
+      val argarray: Array[String] = new Array[String](2 + pp.length)
       argarray(0) = "bin/cgen.out"
+      argarray(1) = tolerance.toString
       for(i <- 0 until pp.length) {
-        argarray(i + 1) = pp(i).toString
+        argarray(i + 2) = pp(i).toString
       }
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
@@ -115,7 +116,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val iterct: Int = siterct.toInt
       val solverrv = cproc.waitFor()
       if(solverrv != 0) throw new Exception("Error in running generated program.")
-      new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct)
+      new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct, tolerance)
     }
   }
 
@@ -142,9 +143,9 @@ trait DCPOpsSolve extends DCPOpsFunction {
     MultiSeqA0(amd)
   }
 
-  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int) {
+  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int, val tolerance: Double) {
     def resolve(x: CvxExprSymbol): Seq[Double] = {
-      val srt = SolverRuntimeDefinite
+      val srt = new SolverRuntimeDefinite(tolerance)
       x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))
     }
     def num_iterations: Int = itercount

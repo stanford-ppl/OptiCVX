@@ -939,3 +939,25 @@ case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
     }
   }
 }
+
+case class AVectorTolerance(val input: InputDesc) extends AVector {
+  val arity: Int = input.arity
+  val size: IRPoly = IRPoly.const(1, arity)
+
+  def arityOp(op: ArityOp): AVector = AVectorTolerance(input.arityOp(op))
+  def inputOp(op: InputOp): AVector = AVectorTolerance(op.input)
+
+  def is0: Boolean = false
+  def isPure: Boolean = false
+
+  def eval[I, M, N, V, W](
+    runtime: SolverRuntime[I, M, N, V, W], 
+    params: Seq[I], 
+    inputs: Seq[N],
+    memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
+  {
+    runtime.tolerance()
+  }
+
+  def simplify: AVector = this
+}

@@ -9,7 +9,7 @@ import scala.collection.immutable.Seq
 object PrimalDualOperatorSplitting extends SolverGenUtil {
 
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone) {
+  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
     val varSize = A.domain
     val affineCstrtSize = A.codomain
     val coneSize = F.codomain
@@ -43,7 +43,7 @@ object PrimalDualOperatorSplitting extends SolverGenUtil {
     x := K.central_vector(A.input) //cat(zeros(varSize + affineCstrtSize + coneSize + coneSize), ones(2))
     u := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize))
 
-    converge(cond - 1e-3) {
+    converge(cond - tol) {
       z := Mproj.proj(x - u, -1)
       x := K.project(z + u)
       u := u + z - x

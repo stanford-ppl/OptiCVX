@@ -6,7 +6,7 @@ import scala.collection.immutable.Seq
 
 trait SolverGen {
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone): Unit
+  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): Unit
 
   private var input: InputDesc = null
   private var variables: Seq[MemoryArgDesc] = null
@@ -150,7 +150,7 @@ trait SolverGen {
     prephase = true
     solveracc = null
 
-    code(A, b, F, g, c, cone)
+    code(A, b, F, g, c, cone, AVectorTolerance(problem.input))
 
     if(variables(0) != MemoryArgDesc(Seq(), problem.varSize)) throw new IRValidationException()
     input = InputDesc(problem.arity, problem.input.args, variables)
@@ -158,7 +158,7 @@ trait SolverGen {
     vidx = 0
     solveracc = SolverNull(input)
 
-    code(A.addMemory(variables), b.addMemory(variables), F.addMemory(variables), g.addMemory(variables), c.addMemory(variables), cone)
+    code(A.addMemory(variables), b.addMemory(variables), F.addMemory(variables), g.addMemory(variables), c.addMemory(variables), cone, AVectorTolerance(input))
 
     if(vidx != variables.length) throw new IRValidationException()
 

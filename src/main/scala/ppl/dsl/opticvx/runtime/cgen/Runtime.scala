@@ -93,7 +93,7 @@ typedef union memory_t {
 } memory_t;
 
 //returns the number of inner loop iterations required to converge
-static solution_t solve(int* params, input_t** inputs, double* output) {"""
+static solution_t solve(int* params, input_t** inputs, double* output, double tolerance) {"""
     rv += "\nint inner_loop_ct = 0;\n\n"
     rv += codeacc
     rv += "\n\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
@@ -450,6 +450,9 @@ static solution_t solve(int* params, input_t** inputs, double* output) {"""
       """,
       "rv" -> rv, "x" -> arg.at(i), "size" -> arg.size, "i" -> i)
     rv
+  }
+  def tolerance(): VectorSym = {
+    new VectorSymFlat("tolerance", intlikei.int2T(1))
   }
 
   def matrixmpy(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {

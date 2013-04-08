@@ -47,7 +47,7 @@ typedef struct solver_t {
    * the bound variables for this problem */
   int (*variable_size)(int* params);
   /* the actual solver function */
-  solution_t (*solve)(int* params, input_t** inputs, double* output);
+  solution_t (*solve)(int* params, input_t** inputs, double* output, double tolerance);
 } solver_t;
 
 #endif
