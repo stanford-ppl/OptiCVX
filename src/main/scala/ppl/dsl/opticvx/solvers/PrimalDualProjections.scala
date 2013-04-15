@@ -44,7 +44,7 @@ object PrimalDualProjections extends SolverGenUtil {
 
     val s = vector(varSize + affineCstrtSize + coneSize + coneSize)
     s := K.scaleest(w)
-    s := ones(s.size)
+    s := ones(s.size) * 20.0
 
     val ws = vector(varSize + affineCstrtSize + coneSize + coneSize)
     ws := elemdiv(w, s)
