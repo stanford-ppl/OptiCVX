@@ -15,6 +15,8 @@ trait Cone extends HasArity[Cone] {
   def central_vector(input: InputDesc): AVector
 
   def scaleest(u: AVector): AVector
+
+  def freematrix(input: InputDesc): Almap
 }
 
 case class ConeNull(val arity: Int) extends Cone {
@@ -35,6 +37,10 @@ case class ConeNull(val arity: Int) extends Cone {
   def scaleest(u: AVector): AVector = {
     if(u.size != IRPoly.const(0, arity)) throw new IRValidationException()
     u
+  }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapZero(input, IRPoly.const(0, arity), IRPoly.const(0, arity))
   }
 }
 
@@ -57,6 +63,10 @@ case class ConeZero(val arity: Int) extends Cone {
     if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
     AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
   }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapIdentity(input, IRPoly.const(1, arity))
+  }
 }
 
 case class ConeFree(val arity: Int) extends Cone {
@@ -77,6 +87,10 @@ case class ConeFree(val arity: Int) extends Cone {
   def scaleest(u: AVector): AVector = {
     if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
     AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
+  }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapIdentity(input, IRPoly.const(1, arity))
   }
 }
 
@@ -99,6 +113,10 @@ case class ConeNonNegative(val arity: Int) extends Cone {
   def scaleest(u: AVector): AVector = {
     if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
     AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
+  }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapIdentity(input, IRPoly.const(1, arity))
   }
 }
 
@@ -125,6 +143,10 @@ case class ConeSecondOrder(val dim: IRPoly) extends Cone {
   def scaleest(u: AVector): AVector = {
     if(u.size != size) throw new IRValidationException()
     AVectorCatFor(size, AVectorSqrt(AVectorSum(AVectorOne(u.input.promote), AVectorNorm2(u.promote))))
+  }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapVCatFor(size, AlmapIdentity(input.promote, IRPoly.const(1, arity + 1)))
   }
 
   /*
@@ -176,6 +198,10 @@ case class ConeProduct(val arg1: Cone, val arg2: Cone) extends Cone {
       arg2.scaleest(AVectorSlice(u, arg1.size, arg2.size)))
   }
 
+  def freematrix(input: InputDesc): Almap = {
+    AlmapDiagCat(arg1.freematrix(input), arg2.freematrix(input))
+  }
+
   /*
   def project_eval(params: Seq[Int], v: Seq[Double]): Seq[Double] = {
     if(v.size != size.eval(params)(IntLikeInt)) throw new IRValidationException()
@@ -222,6 +248,10 @@ case class ConeFor(val len: IRPoly, val body: Cone) extends Cone {
     AVectorCatFor(
       len,
       body.scaleest(AVectorSlice(u.promote, body.size.sum(arity), body.size)))
+  }
+
+  def freematrix(input: InputDesc): Almap = {
+    AlmapDiagCatFor(len, body.freematrix(input.promote))
   }
 
   /*

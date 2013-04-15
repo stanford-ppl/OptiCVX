@@ -6,7 +6,7 @@ import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
 
-object PrimalDualHomogeneous extends SolverGenUtil {
+object PrimalDualHomogeneousEx extends SolverGenUtil {
 
 
   def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
@@ -35,7 +35,10 @@ object PrimalDualHomogeneous extends SolverGenUtil {
     val u = vector(varSize + affineCstrtSize + coneSize + coneSize + 2)
     val cond = scalar
 
-    val Mproj = new LSQRProject(M, zeros(M.codomain))
+    val s = vector(varSize + affineCstrtSize + coneSize + coneSize + 2)
+    s := ones(s.size)
+
+    val Mproj = new LSQRProject(M * diag(s), zeros(M.codomain))
 
     x := K.central_vector(A.input)
     u := zeros(u.size)
@@ -44,9 +47,10 @@ object PrimalDualHomogeneous extends SolverGenUtil {
       z := Mproj.proj(x - u, tol)
       x := K.project(z + u)
       u := u + z - x
-      cond := norm_inf(M*x) / sqrt(norm2(x))
+      cond := norm_inf(M*elemmpy(x,s)) / sqrt(norm2(elemmpy(x, s)))
     }
 
+    x := elemmpy(x, s)
     x_out := slice(x, 0, varSize) / slice(x, varSize + affineCstrtSize + coneSize + coneSize, 1)
   }
 }
