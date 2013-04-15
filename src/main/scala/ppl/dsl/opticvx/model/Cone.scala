@@ -13,6 +13,8 @@ trait Cone extends HasArity[Cone] {
   def project(x: AVector): AVector
 
   def central_vector(input: InputDesc): AVector
+
+  def scaleest(u: AVector): AVector
 }
 
 case class ConeNull(val arity: Int) extends Cone {
@@ -29,6 +31,11 @@ case class ConeNull(val arity: Int) extends Cone {
   def simplify: Cone = this
 
   def central_vector(input: InputDesc): AVector = AVectorZero(input, IRPoly.const(0, arity))
+
+  def scaleest(u: AVector): AVector = {
+    if(u.size != IRPoly.const(0, arity)) throw new IRValidationException()
+    u
+  }
 }
 
 case class ConeZero(val arity: Int) extends Cone {
@@ -45,6 +52,11 @@ case class ConeZero(val arity: Int) extends Cone {
   def simplify: Cone = this
 
   def central_vector(input: InputDesc): AVector = AVectorZero(input, IRPoly.const(1, arity))
+
+  def scaleest(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
+  }
 }
 
 case class ConeFree(val arity: Int) extends Cone {
@@ -61,6 +73,11 @@ case class ConeFree(val arity: Int) extends Cone {
   def simplify: Cone = this
 
   def central_vector(input: InputDesc): AVector = AVectorZero(input, IRPoly.const(1, arity))
+
+  def scaleest(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
+  }
 }
 
 //The trivial scalar cone (the only proper cone over R)
@@ -78,6 +95,11 @@ case class ConeNonNegative(val arity: Int) extends Cone {
   def simplify: Cone = this
 
   def central_vector(input: InputDesc): AVector = AVectorOne(input)
+
+  def scaleest(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    AVectorSqrt(AVectorSum(AVectorOne(u.input), AVectorNorm2(u)))
+  }
 }
 
 //Second order cone
@@ -98,6 +120,11 @@ case class ConeSecondOrder(val dim: IRPoly) extends Cone {
     val u = AVectorMax(AVectorNeg(AVectorOne(x.input)), AVectorMin(AVectorOne(x.input), AVectorDiv(z, nv)))
     val w = AVectorMax(nv, z)
     AVectorMpy(AVectorCat(w, v), AVectorScaleConstant(AVectorOne(x.input) + u, 0.5))
+  }
+
+  def scaleest(u: AVector): AVector = {
+    if(u.size != size) throw new IRValidationException()
+    AVectorCatFor(size, AVectorSqrt(AVectorSum(AVectorOne(u.input.promote), AVectorNorm2(u.promote))))
   }
 
   /*
@@ -143,6 +170,12 @@ case class ConeProduct(val arg1: Cone, val arg2: Cone) extends Cone {
       arg2.project(AVectorSlice(x, arg1.size, arg2.size)))
   }
 
+  def scaleest(u: AVector): AVector = {
+    AVectorCat(
+      arg1.scaleest(AVectorSlice(u, IRPoly.const(0, u.arity), arg1.size)),
+      arg2.scaleest(AVectorSlice(u, arg1.size, arg2.size)))
+  }
+
   /*
   def project_eval(params: Seq[Int], v: Seq[Double]): Seq[Double] = {
     if(v.size != size.eval(params)(IntLikeInt)) throw new IRValidationException()
@@ -183,6 +216,12 @@ case class ConeFor(val len: IRPoly, val body: Cone) extends Cone {
     AVectorCatFor(
       len,
       body.project(AVectorSlice(x.promote, body.size.sum(arity), body.size)))
+  }
+
+  def scaleest(u: AVector): AVector = {
+    AVectorCatFor(
+      len,
+      body.scaleest(AVectorSlice(u.promote, body.size.sum(arity), body.size)))
   }
 
   /*

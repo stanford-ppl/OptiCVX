@@ -117,10 +117,10 @@ object DCPOpsTestApp extends DCPOps {
     ))
     /* generate a solver */
     println("generating the solver...")
-    val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
+    val solver = tictoc(prob.gen(PrimalDualProjections))
     /* define variables to store the inputs we'll pass to the solver */
-    val n_in: Int = 10
-    val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
+    val n_in: Int = 5
+    val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0, 4.0, 5.0)
     val tol: Double = 1e-3
     /* this section of the code is commented out because running in scala is slow */
     // /* solve the problem */
@@ -141,8 +141,8 @@ object DCPOpsTestApp extends DCPOps {
     val csoln = tictoc(csolver.solve(n_in)(a_in)(tol))
     /* print out the results */
     println("converged in " + csoln.num_iterations + " iterations")
-    println("x = " + csoln.resolve(x).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
-    println("y = " + csoln.resolve(y).map(d => "%1.4f" format d).mkString("[", ", ", "]"))
+    println("x = " + csoln.resolve(x).map(d => "%1.4g" format d).mkString("[", ", ", "]"))
+    println("y = " + csoln.resolve(y).map(d => "%1.4g" format d).mkString("[", ", ", "]"))
     
   }
 }

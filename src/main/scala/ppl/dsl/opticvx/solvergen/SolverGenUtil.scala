@@ -8,9 +8,9 @@ import scala.collection.immutable.Seq
 trait SolverGenUtil extends SolverGen {
 
   class OrthoNullProjectorPartial(val A: Almap) {
-    private val ATA: Almap = (A.T * A).simplify
     private val u: SVariable = vector(A.domain)
     private val v: SVariable = vector(A.domain)
+    private val w: SVariable = vector(A.codomain)
     private val norm2u: SVariable = scalar
     private val norm2v: SVariable = scalar
     private val udotx: SVariable = scalar
@@ -30,7 +30,8 @@ trait SolverGenUtil extends SolverGen {
       if(initdone != false) throw new IRValidationException()
       initdone = true
 
-      u := ATA * x
+      w := A * x
+      u := A.T * w
       norm2u := norm2(u)
       udotx := dot(u, x) //here, we cheat to assign the appropriate residual
       alpha := udotx/norm2u
@@ -40,7 +41,8 @@ trait SolverGenUtil extends SolverGen {
     def proj(x: AVector): AVector = {
       if(initdone != true) throw new IRValidationException()
 
-      v := ATA * x
+      w := A * x
+      v := A.T * w
       norm2u := norm2(u)
       norm2v := norm2(v)
       udotx := dot(u, x)

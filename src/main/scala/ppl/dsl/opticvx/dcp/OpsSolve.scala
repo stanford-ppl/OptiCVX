@@ -29,6 +29,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
   }
 
   val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
+  val PrimalDualProjections = ppl.dsl.opticvx.solvers.PrimalDualProjections
   val PrimalDualSubgradient = ppl.dsl.opticvx.solvers.PrimalDualSubgradient
   val AlternatingProjections = ppl.dsl.opticvx.solvers.AlternatingProjections
 

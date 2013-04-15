@@ -97,6 +97,23 @@ trait SolverGen {
   def sqrt(arg: AVector) = AVectorSqrt(arg)
   def dot(arg1: AVector, arg2: AVector) = AVectorDot(arg1, arg2)
 
+  def elemmpy(arg1: AVector, arg2: AVector): AVector = {
+    if(arg1.size != arg2.size) throw new IRValidationException()
+    val idx = IRPoly.param(arg1.arity, arg1.arity + 1)
+    val ione = IRPoly.const(1, arg1.arity + 1)
+    AVectorCatFor(arg1.size, AVectorMpy(AVectorSlice(arg1.promote, idx, ione), AVectorSlice(arg2.promote, idx, ione)))
+  }
+
+  def elemdiv(arg1: AVector, arg2: AVector): AVector = {
+    if(arg1.size != arg2.size) throw new IRValidationException()
+    val idx = IRPoly.param(arg1.arity, arg1.arity + 1)
+    val ione = IRPoly.const(1, arg1.arity + 1)
+    AVectorCatFor(arg1.size, AVectorDiv(AVectorSlice(arg1.promote, idx, ione), AVectorSlice(arg2.promote, idx, ione)))
+  }
+
+  def diag(arg: AVector): Almap = AlmapDiagVector(arg)
+
+
   def zerocone(d: IRPoly): Cone = ConeFor(d, ConeZero(input.arity + 1))
   def freecone(d: IRPoly): Cone = ConeFor(d, ConeFree(input.arity + 1))
 

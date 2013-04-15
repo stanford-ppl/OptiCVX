@@ -795,3 +795,39 @@ case class AlmapVectorT(val arg: AVector) extends Almap {
 
   override def toString: String = "vectorT(" + arg.toString + ")"
 }
+
+case class AlmapDiagVector(val arg: AVector) extends Almap {
+  val arity: Int = arg.arity
+  val input: InputDesc = arg.input
+  val domain: IRPoly = arg.size
+  val codomain: IRPoly = arg.size
+
+  arityVerify()
+
+  def arityOp(op: ArityOp): Almap = AlmapDiagVector(arg.arityOp(op))
+  def inputOp(op: InputOp): Almap = AlmapDiagVector(arg.inputOp(op))
+
+  def T: Almap = Tcheck(AlmapDiagVector(arg))
+
+  def mmpy(x: AVector): AVector = mmpycheck(x) {
+    if(arg.size != x.size) throw new IRValidationException()
+    val idx = IRPoly.param(arg.arity, arg.arity + 1)
+    val ione = IRPoly.const(1, arg.arity + 1)
+    AVectorCatFor(arg.size, AVectorMpy(AVectorSlice(arg.promote, idx, ione), AVectorSlice(x.promote, idx, ione)))
+  }
+
+  def is0: Boolean = arg.is0
+  def isPure: Boolean = arg.isPure
+
+  def simplify: Almap = {
+    val sa: AVector = arg.simplify
+    if(sa.is0) {
+      AlmapZero(input, domain, codomain)
+    }
+    else {
+      AlmapDiagVector(sa)
+    }
+  }
+
+  override def toString: String = "diagvector(" + arg.toString + ")"
+}
