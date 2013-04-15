@@ -73,9 +73,13 @@ trait SolverGenUtil extends SolverGen {
     private val c = scalar
     private val s = scalar
 
-    def solve(b: AVector): AVector = solve(b, -1)
+    def solve(b: AVector): AVector = solve(b, 1e-3, -1)
 
-    def solve(b: AVector, itermax: Int): AVector = {
+    def solve(b: AVector, tol: AVector): AVector = solve(b, tol, -1)
+
+    def solve(b: AVector, itermax: Int): AVector = solve(b, 1e-3, itermax)
+
+    def solve(b: AVector, tol: AVector, itermax: Int): AVector = {
 
       //initialization phase
       betau := b
@@ -87,7 +91,7 @@ trait SolverGenUtil extends SolverGen {
       phibar := beta
       rhobar := alpha
 
-      converge(phibar - 1e-3, itermax) {
+      converge(phibar - tol, itermax) {
         //solution phase
         betau := A*v - u*alpha
         beta := sqrt(norm2(betau))
@@ -114,10 +118,14 @@ trait SolverGenUtil extends SolverGen {
   class LSQRProject(val A: Almap, val b: AVector) {
     private val lsqr = new LSQR(A)
 
-    def proj(x: AVector): AVector = proj(x, -1)
+    def proj(x: AVector): AVector = proj(x, 1e-3, -1)
 
-    def proj(x: AVector, itermax: Int): AVector = {
-      x - lsqr.solve(A*x + b, itermax)
+    def proj(x: AVector, tol: AVector): AVector = proj(x, tol, -1)
+
+    def proj(x: AVector, itermax: Int): AVector = proj(x, 1e-3, itermax)
+
+    def proj(x: AVector, tol: AVector, itermax: Int): AVector = {
+      x - lsqr.solve(A*x + b, tol, itermax)
     }
   }
 
