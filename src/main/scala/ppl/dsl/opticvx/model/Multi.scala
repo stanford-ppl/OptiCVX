@@ -11,9 +11,12 @@ case class Multi[T <: HasArity[T]](val dims: Seq[IRPoly], val body: T) extends H
     if(dims(i).arity != arity + i) throw new IRValidationException()
   }
 
-  def arityOp(op: ArityOp): Multi[T] = Multi(
-    for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
-    body.arityOp(op.promoteBy(dims.length)))
+  def arityOp(op: ArityOp): Multi[T] = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    Multi(
+      for(i <- 0 until dims.length) yield dims(i).arityOp(op.leftPromoteBy(i)),
+      body.arityOp(op.leftPromoteBy(dims.length)))
+  }
 
   def extend[U <: HasArity[U]](fx: T => U): Multi[U] = Multi(dims, fx(body))
 
@@ -27,8 +30,8 @@ case class MultiW[T <: HasInput[T]](val dims: Seq[IRPoly], val body: T) extends 
   }
 
   def arityOp(op: ArityOp): MultiW[T] = MultiW(
-    for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
-    body.arityOp(op.promoteBy(dims.length)))
+    for(i <- 0 until dims.length) yield dims(i).arityOp(op.leftPromoteBy(i)),
+    body.arityOp(op.leftPromoteBy(dims.length)))
 
   def inputOp(op: InputOp): MultiW[T] = MultiW(dims, body.inputOp(op.promoteBy(dims.length)))
 

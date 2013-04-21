@@ -115,10 +115,13 @@ trait DCPOpsFunction extends DCPOpsExpr {
     // bind the inputs
     val s_inputs: Seq[CvxInputBinding] = ts_inputs.inputs
     val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
-    globalInputSize = s_inputsize
     for(i <- 0 until s_inputs.length) {
-      s_inputs(i).symbol.bind(CvxInput(AlmapInput(s_inputsize, i, Seq())))
+      s_inputs(i).symbol.bind(CvxInput(Multi(
+        s_inputs(i).argdesc.dims, 
+        AlmapInput(s_inputsize.promoteBy(s_inputs(i).argdesc.dims.size), i,
+          for(j <- 0 until s_inputs(i).argdesc.dims.size) yield IRPoly.param(s_params.length + j, s_params.length + s_inputs(i).argdesc.dims.size)))))
     }
+    globalInputSize = s_inputsize
     // bind the arguments
     val s_args: Seq[CvxArgBinding] = ts_args.args
     for(i <- 0 until s_args.length) {
@@ -157,6 +160,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
     val s_value = ts_value
     globalArity = -1
     globalArgSize = null
+    globalInputSize = null
     // make the return value
     val tmpfxn = (s_value match {
       case x: CvxMinimize => s_where.foldLeft(x.expr.fx)((a,b) => a + b.fx)

@@ -15,6 +15,10 @@ case class ArityOp(val arity: Int, val xs: Seq[IRPoly]) extends HasArity[ArityOp
 
   def leftPromote: ArityOp =
     ArityOp(arity + 1, (xs map (x => x.promote)) :+ IRPoly.param(arity, arity + 1))
+
+  def leftPromoteBy(len: Int): ArityOp = {
+    ArityOp(arity + len, (xs map (x => x.promoteBy(len))) ++ (for(i <- 0 until len) yield IRPoly.param(arity + i, arity + len)))
+  }
 }
 
 trait HasArity[T] {

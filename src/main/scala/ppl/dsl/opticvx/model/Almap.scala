@@ -10,7 +10,10 @@ import scala.collection.immutable.Seq
 case class AlmapShape(val domain: IRPoly, val codomain: IRPoly) extends HasArity[AlmapShape] {
   val arity: Int = domain.arity
   if(codomain.arity != domain.arity) throw new IRValidationException()
-  def arityOp(op: ArityOp): AlmapShape = AlmapShape(domain.arityOp(op), codomain.arityOp(op))
+  def arityOp(op: ArityOp): AlmapShape = {
+    if(op.xs.length != arity) throw new IRValidationException()
+    AlmapShape(domain.arityOp(op), codomain.arityOp(op))
+  }
 }
 
 sealed trait Almap extends HasInput[Almap] {

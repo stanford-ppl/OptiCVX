@@ -89,10 +89,10 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     )
   }
 
-  case class CvxInput(val almap: Almap) {
+  case class CvxInput(val ma: Multi[Almap]) {
     def *(x: CvxExpr): CvxExpr = {
-      //val a: Almap = AlmapInput(globalInputSize, idx, Seq())
-      val a: Almap = almap.promoteTo(globalArity)
+      if(ma.dims.length != 0) throw new IRValidationException()
+      val a: Almap = ma.body.promoteTo(globalArity)
       CvxExpr(Function(
         x.fx.input,
         x.fx.argSize,
@@ -111,7 +111,11 @@ trait DCPOpsExpr extends DCPOpsGlobal {
         x.fx.conicOffset,
         x.fx.conicCone))
     }
-    def T: CvxInput = CvxInput(almap.T)
+    def at(idxs: IRPoly*): CvxInput = {
+      if(idxs.length != ma.dims.length) throw new IRValidationException()
+      CvxInput(Multi(Seq(), ma.promoteTo(globalArity).body.substituteSeq(Seq(idxs:_*))))
+    }
+    def T: CvxInput = CvxInput(ma.extend(a => a.T))
   }
 
   implicit def cvxinput2expr(a: CvxInput): CvxExpr = a * double2expr(1.0)
