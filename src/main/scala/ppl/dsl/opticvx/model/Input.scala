@@ -5,34 +5,7 @@ import ppl.dsl.opticvx.common._
 import scala.collection.immutable.Seq
 
 
-case class InputArgDesc(val dims: Seq[IRPoly], val domain: IRPoly, val codomain: IRPoly) extends HasArity[InputArgDesc] {
-  val arity: Int = domain.arity - dims.length
-  if(domain.arity != codomain.arity) throw new IRValidationException()
-  for(i <- 0 until dims.length) {
-    if(dims(i).arity != arity - (dims.length - i)) throw new IRValidationException()
-  }
-
-  def arityOp(op: ArityOp): InputArgDesc = {
-    if(op.xs.length != arity) throw new IRValidationException()
-    InputArgDesc(
-      for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
-      domain.arityOp(op.promoteBy(dims.length)),
-      codomain.arityOp(op.promoteBy(dims.length)))
-  }
-}
-
-case class MemoryArgDesc(val dims: Seq[IRPoly], val size: IRPoly) extends HasArity[MemoryArgDesc] {
-  val arity: Int = size.arity - dims.length
-  for(i <- 0 until dims.length) {
-    if(dims(i).arity != arity + i) throw new IRValidationException()
-  }
-
-  def arityOp(op: ArityOp): MemoryArgDesc = MemoryArgDesc(
-    for(i <- 0 until dims.length) yield dims(i).arityOp(op.promoteBy(i)),
-    size.arityOp(op.promoteBy(dims.length)))
-}
-
-case class InputDesc(val arity: Int, val args: Seq[InputArgDesc], val memory: Seq[MemoryArgDesc]) extends HasArity[InputDesc] {
+case class InputDesc(val arity: Int, val args: Seq[Multi[AlmapShape]], val memory: Seq[Multi[IRPoly]]) extends HasArity[InputDesc] {
   for(a <- args) {
     if(a.arity != arity) throw new IRValidationException()
   }
@@ -65,7 +38,7 @@ trait HasInput[T] extends HasArity[T] {
 
   def inputOp(op: InputOp): T
 
-  def pushMemory(arg: MemoryArgDesc): T = {
+  def pushMemory(arg: Multi[IRPoly]): T = {
     if(arg.arity != arity) throw new IRValidationException()
     val newinput = InputDesc(arity, input.args, input.memory :+ arg)
     val op = InputOp(
@@ -85,7 +58,7 @@ trait HasInput[T] extends HasArity[T] {
     inputOp(op)
   }
 
-  def addMemory(args: Seq[MemoryArgDesc]): T = {
+  def addMemory(args: Seq[Multi[IRPoly]]): T = {
     // TODO: Make this function more robust
     if(!isMemoryless) throw new IRValidationException()
     val newinput = InputDesc(arity, input.args, input.memory ++ args)

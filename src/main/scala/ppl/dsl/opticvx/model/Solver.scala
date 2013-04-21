@@ -49,15 +49,15 @@ trait SolverRuntime[I, M, N, V, W] {
   def runfor(len: I, memory: Seq[W], body: (I, Seq[W]) => Seq[W]): Seq[W]
 
 
-  def memoryallocfrom(m: MemoryArgDesc, pp: Seq[I]): W = memoryallocfrom(m, 0, pp)
+  def memoryallocfrom(m: Multi[IRPoly], pp: Seq[I]): W = memoryallocfrom(m, 0, pp)
 
-  private def memoryallocfrom(m: MemoryArgDesc, ar: Int, pp: Seq[I]): W = {
+  private def memoryallocfrom(m: Multi[IRPoly], ar: Int, pp: Seq[I]): W = {
     if(m.arity != pp.length) throw new IRValidationException()
     if(m.dims.length == 0) {
-      memoryalloc(m.size.eval(pp)(intlikei))
+      memoryalloc(m.body.eval(pp)(intlikei))
     }
     else {
-      memoryallocfor(m.dims(0).eval(pp)(intlikei), ar + 1, (i) => memoryallocfrom(MemoryArgDesc(m.dims.drop(1), m.size), ar + 1, pp :+ i))
+      memoryallocfor(m.dims(0).eval(pp)(intlikei), ar + 1, (i) => memoryallocfrom(Multi(m.dims.drop(1), m.body), ar + 1, pp :+ i))
     }
   }
 }
@@ -83,9 +83,9 @@ case class SolverWrite(val src: AVector, val iidx: Int, sidx: Seq[IRPoly]) exten
   val arity: Int = src.arity
   val input: InputDesc = src.input
 
-  if(src.size != input.memory(iidx).size.substituteSeq(sidx)) {
+  if(src.size != input.memory(iidx).body.substituteSeq(sidx)) {
     println(src.size)
-    println(input.memory(iidx).size.substituteSeq(sidx))
+    println(input.memory(iidx).body.substituteSeq(sidx))
     throw new IRValidationException()
   }
 

@@ -479,9 +479,9 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
 case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
   val arity: Int = arg.arity
   val input: InputDesc = arg.input
-  val size: IRPoly = input.args(iidx).codomain.substituteSeq(sidx)
+  val size: IRPoly = input.args(iidx).body.codomain.substituteSeq(sidx)
 
-  if(arg.size != input.args(iidx).domain.substituteSeq(sidx)) throw new IRValidationException()
+  if(arg.size != input.args(iidx).body.domain.substituteSeq(sidx)) throw new IRValidationException()
 
   arityVerify()
 
@@ -489,7 +489,7 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
   def inputOp(op: InputOp): AVector = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).arity != input.args(i).domain.arity) throw new IRValidationException()
+      if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
     }
     op.xs(iidx).substituteSeq(sidx).mmpy(arg.inputOp(op))
   }
@@ -529,9 +529,9 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
 case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
   val arity: Int = arg.arity
   val input: InputDesc = arg.input
-  val size: IRPoly = input.args(iidx).domain.substituteSeq(sidx)
+  val size: IRPoly = input.args(iidx).body.domain.substituteSeq(sidx)
 
-  if(arg.size != input.args(iidx).codomain.substituteSeq(sidx)) throw new IRValidationException()
+  if(arg.size != input.args(iidx).body.codomain.substituteSeq(sidx)) throw new IRValidationException()
 
   arityVerify()
 
@@ -577,7 +577,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
 
 case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
   val arity: Int = input.arity
-  val size: IRPoly = input.memory(iidx).size.substituteSeq(sidx)
+  val size: IRPoly = input.memory(iidx).body.substituteSeq(sidx)
   
   if(sidx.length != input.memory(iidx).dims.length) throw new IRValidationException()
   for(s <- sidx) {
@@ -601,7 +601,7 @@ case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.vectorget(memory(iidx), input.memory(iidx).size.substituteSeq(sidx).eval(params)(runtime.intlikei), sidx map (s => s.eval(params)(runtime.intlikei)))
+    runtime.vectorget(memory(iidx), input.memory(iidx).body.substituteSeq(sidx).eval(params)(runtime.intlikei), sidx map (s => s.eval(params)(runtime.intlikei)))
   }
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = {

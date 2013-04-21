@@ -49,6 +49,19 @@ trait HasArity[T] {
     arityOp(op)
   }
 
+  def demoteBy(len: Int): T = {
+    for(i <- 0 until len) {
+      if(!invariantAt(arity - 1 - i)) throw new IRValidationException()
+    }
+    val op = ArityOp(
+      arity - len,
+      for(i <- 0 until arity) yield {
+        if(i < arity - len) IRPoly.param(i, arity - len)
+        else IRPoly.const(0, arity - len)
+      })
+    arityOp(op)
+  }
+
   // promote this value to a particular arity
   def promoteTo(len: Int): T = {
     if(arity > len) throw new IRValidationException()

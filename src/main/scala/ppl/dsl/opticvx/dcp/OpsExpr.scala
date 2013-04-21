@@ -89,9 +89,10 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     )
   }
 
-  case class CvxInput(val idx: Int) {
+  case class CvxInput(val almap: Almap) {
     def *(x: CvxExpr): CvxExpr = {
-      val a: Almap = AlmapInput(globalInputSize, idx, Seq())
+      //val a: Almap = AlmapInput(globalInputSize, idx, Seq())
+      val a: Almap = almap.promoteTo(globalArity)
       CvxExpr(Function(
         x.fx.input,
         x.fx.argSize,
@@ -110,6 +111,7 @@ trait DCPOpsExpr extends DCPOpsGlobal {
         x.fx.conicOffset,
         x.fx.conicCone))
     }
+    def T: CvxInput = CvxInput(almap.T)
   }
 
   implicit def cvxinput2expr(a: CvxInput): CvxExpr = a * double2expr(1.0)
@@ -240,6 +242,10 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       if(boundinput == null) throw new IRValidationException()
       boundinput = null
     }
+    def *(x: CvxExpr): CvxExpr = {
+      if(boundinput != null) throw new IRValidationException()
+      boundinput * x
+    }
   }
   class CvxExprSymbol {
     protected[dcp] var boundexpr: CvxExpr = null
@@ -295,4 +301,26 @@ trait DCPOpsExpr extends DCPOpsGlobal {
   def cvxinput(): CvxInputSymbol = new CvxInputSymbol
   def cvxexpr(): CvxExprSymbol = new CvxExprSymbol
 
+
+  def inputscalar: Multi[AlmapShape] = 
+    Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), IRPoly.const(1, globalArity)))
+
+  def inputvector(n: IRPoly): Multi[AlmapShape] = {
+    if(n.arity != globalArity) throw new IRValidationException()
+    Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), n))
+  }
+
+  def inputmatrix(m: IRPoly, n: IRPoly): Multi[AlmapShape] = {
+    if(m.arity != globalArity) throw new IRValidationException()
+    if(n.arity != globalArity) throw new IRValidationException()
+    Multi(Seq(), AlmapShape(m, n))
+  }
+
+  def inputfor(len: IRPoly)(fx: (IRPoly) => Multi[AlmapShape]) = {
+    if(len.arity != globalArity) throw new IRValidationException()
+    globalArityPromote()
+    val cxfx = fx(len.next)
+    globalArityDemote()
+    Multi(cxfx.dims :+ len, cxfx.body)
+  }
 }

@@ -9,7 +9,7 @@ trait SolverGen {
   def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): Unit
 
   private var input: InputDesc = null
-  private var variables: Seq[MemoryArgDesc] = null
+  private var variables: Seq[Multi[IRPoly]] = null
   private var vidx: Int = 0
   private var prephase: Boolean = true
   private var solveracc: Solver = null
@@ -44,7 +44,7 @@ trait SolverGen {
   implicit def svariableentry2vectorimpl(s: SVariableEntry): AVector = {
     if(prephase) {
       // in prephase, all reads result in zero because the memory isn't defined
-      AVectorCatFor(variables(s.iidx).size.substituteSeq(s.sidx), AVectorOne(input.promote))
+      AVectorCatFor(variables(s.iidx).body.substituteSeq(s.sidx), AVectorOne(input.promote))
     }
     else {
       AVectorRead(input, s.iidx, s.sidx)
@@ -125,11 +125,11 @@ trait SolverGen {
   def scalar: SVariable = vector(IRPoly.const(1, input.arity))
   def vector(len: IRPoly): SVariable = {
     if(prephase) {
-      variables :+= MemoryArgDesc(Seq(), len)
+      variables :+= Multi(Seq(), len)
       SVariable(variables.length - 1)
     }
     else {
-      if(variables(vidx) != MemoryArgDesc(Seq(), len)) throw new IRValidationException()
+      if(variables(vidx) != Multi(Seq(), len)) throw new IRValidationException()
       vidx += 1
       SVariable(vidx - 1)
     }
@@ -169,7 +169,7 @@ trait SolverGen {
 
     code(A, b, F, g, c, cone, AVectorTolerance(problem.input))
 
-    if(variables(0) != MemoryArgDesc(Seq(), problem.varSize)) throw new IRValidationException()
+    if(variables(0) != Multi(Seq(), problem.varSize)) throw new IRValidationException()
     input = InputDesc(problem.arity, problem.input.args, variables)
     prephase = false
     vidx = 0

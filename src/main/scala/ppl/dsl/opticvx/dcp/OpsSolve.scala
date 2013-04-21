@@ -14,20 +14,6 @@ import java.lang.Runtime
 
 trait DCPOpsSolve extends DCPOpsFunction {
 
-  def inputscalar: InputArgDesc = 
-    InputArgDesc(Seq(), IRPoly.const(1, globalArity), IRPoly.const(1, globalArity))
-
-  def inputvector(n: IRPoly): InputArgDesc = {
-    if(n.arity != globalArity) throw new IRValidationException()
-    InputArgDesc(Seq(), IRPoly.const(1, globalArity), n)
-  }
-
-  def inputmatrix(m: IRPoly, n: IRPoly): InputArgDesc = {
-    if(m.arity != globalArity) throw new IRValidationException()
-    if(n.arity != globalArity) throw new IRValidationException()
-    InputArgDesc(Seq(), m, n)
-  }
-
   val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
   val PrimalDualProjections = ppl.dsl.opticvx.solvers.PrimalDualProjections
   val PrimalDualHomogeneous = ppl.dsl.opticvx.solvers.PrimalDualHomogeneous
@@ -54,16 +40,16 @@ trait DCPOpsSolve extends DCPOpsFunction {
     }
     def cgen(): CvxSSolverCGen = {
       val srt = new SolverRuntimeCGen(solver.arity)
-      srt.setinputs(solver.input.args map ((a: InputArgDesc) =>
+      srt.setinputs(solver.input.args map ((a: Multi[AlmapShape]) =>
         InputDescCGen(
           a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
-          ((b: Seq[IntSym]) => (a.domain.eval(b)(srt.intlikei))),
-          ((b: Seq[IntSym]) => (a.codomain.eval(b)(srt.intlikei)))
+          ((b: Seq[IntSym]) => (a.body.domain.eval(b)(srt.intlikei))),
+          ((b: Seq[IntSym]) => (a.body.codomain.eval(b)(srt.intlikei)))
       )))
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
       val vv = solver.run(srt, srt.params, srt.inputs, mm)
-      srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).size.eval(srt.params)(srt.intlikei), Seq()))
-      new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).size)
+      srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).body.eval(srt.params)(srt.intlikei), Seq()))
+      new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).body)
     }
   }
 
@@ -174,7 +160,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
     val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
     globalInputSize = s_inputsize
     for(i <- 0 until s_inputs.length) {
-      s_inputs(i).symbol.bind(CvxInput(i))
+      s_inputs(i).symbol.bind(CvxInput(AlmapInput(s_inputsize, i, Seq())))
     }
     // there are no arguments or DCP information
     // get the variables
@@ -188,7 +174,11 @@ trait DCPOpsSolve extends DCPOpsFunction {
     // bind the let-expressions
     val s_let = ts_let.exprs
     for(b <- s_let) {
-      b.symbol.bindexpr(b.expr)
+      b match {
+        case bx: CvxLetExprBinding => bx.symbol.bindexpr(bx.expr)
+        case bx: CvxLetInputBinding => bx.symbol.bind(bx.input)
+        case _ => throw new IRValidationException()
+      }
     }
     // get the constraints and value
     val s_where = ts_where.constraints
@@ -215,11 +205,16 @@ trait DCPOpsSolve extends DCPOpsFunction {
       minfxn.conicCone)
 
     /* rebind the functions */
-    val syms = (s_over map (x => x.symbol)) ++ (s_let map (x => x.symbol))
+    var syms = s_over map (x => x.symbol)
+    for(b <- s_let) {
+      b match {
+        case bx: CvxLetExprBinding => syms :+ bx.symbol
+      }
+    }
     for(s <- syms) {
       val x = s.boundexpr
       val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
-      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(MemoryArgDesc(Seq(), msfx.varSize)))
+      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(Multi(Seq(), msfx.varSize)))
       val sv = AVectorSum(
         msfx.valueOffset.addMemory(sinput.memory),
         msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))

@@ -11,7 +11,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
   class CvxParams(val params: Seq[CvxParamSymbol])
 
   class CvxInputs(val inputs: Seq[CvxInputBinding])
-  class CvxInputBinding(val argdesc: InputArgDesc, val symbol: CvxInputSymbol)
+  class CvxInputBinding(val argdesc: Multi[AlmapShape], val symbol: CvxInputSymbol)
 
   class CvxArgs(val args: Seq[CvxArgBinding])
   class CvxArgBinding(val size: IRPoly, val symbol: CvxExprSymbol)
@@ -26,7 +26,9 @@ trait DCPOpsFunction extends DCPOpsExpr {
   class CvxOverBinding(val size: IRPoly, val symbol: CvxExprSymbol)
 
   class CvxLet(val exprs: Seq[CvxLetBinding])
-  class CvxLetBinding(val expr: CvxExpr, val symbol: CvxExprSymbol)
+  trait CvxLetBinding
+  class CvxLetExprBinding(val expr: CvxExpr, val symbol: CvxExprSymbol) extends CvxLetBinding
+  class CvxLetInputBinding(val input: CvxInput, val symbol: CvxInputSymbol) extends CvxLetBinding
 
   class CvxWhere(val constraints: Seq[CvxConstraint])
 
@@ -37,7 +39,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
   def params(ps: CvxParamSymbol*): CvxParams = new CvxParams(Seq(ps:_*))
 
   def given(bs: CvxInputBinding*): CvxInputs = new CvxInputs(Seq(bs:_*))
-  implicit def inputbindingimpl(tpl: Tuple2[InputArgDesc, CvxInputSymbol]): CvxInputBinding = 
+  implicit def inputbindingimpl(tpl: Tuple2[Multi[AlmapShape], CvxInputSymbol]): CvxInputBinding = 
     new CvxInputBinding(tpl._1, tpl._2)
 
   def args(as: CvxArgBinding*): CvxArgs = new CvxArgs(Seq(as:_*))
@@ -55,8 +57,10 @@ trait DCPOpsFunction extends DCPOpsExpr {
     new CvxOverBinding(tpl._1, tpl._2)
 
   def let(xs: CvxLetBinding*): CvxLet = new CvxLet(Seq(xs:_*))
-  implicit def letbindingimpl(tpl: Tuple2[CvxExpr, CvxExprSymbol]): CvxLetBinding =
-    new CvxLetBinding(tpl._1, tpl._2)
+  implicit def letexprbindingimpl(tpl: Tuple2[CvxExpr, CvxExprSymbol]): CvxLetBinding =
+    new CvxLetExprBinding(tpl._1, tpl._2)
+  implicit def letinputbindingimpl(tpl: Tuple2[CvxInput, CvxInputSymbol]): CvxLetBinding =
+    new CvxLetInputBinding(tpl._1, tpl._2)
 
   def where(xs: CvxConstraint*): CvxWhere = new CvxWhere(Seq(xs:_*))
 
@@ -113,7 +117,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
     val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
     globalInputSize = s_inputsize
     for(i <- 0 until s_inputs.length) {
-      s_inputs(i).symbol.bind(CvxInput(i))
+      s_inputs(i).symbol.bind(CvxInput(AlmapInput(s_inputsize, i, Seq())))
     }
     // bind the arguments
     val s_args: Seq[CvxArgBinding] = ts_args.args
@@ -142,7 +146,11 @@ trait DCPOpsFunction extends DCPOpsExpr {
     // bind the let-expressions
     val s_let = ts_let.exprs
     for(b <- s_let) {
-      b.symbol.bindexpr(b.expr)
+      b match {
+        case bx: CvxLetExprBinding => bx.symbol.bindexpr(bx.expr)
+        case bx: CvxLetInputBinding => bx.symbol.bind(bx.input)
+        case _ => throw new IRValidationException()
+      }
     }
     // get the constraints and value
     val s_where = ts_where.constraints

@@ -7,10 +7,18 @@ import ppl.dsl.opticvx.common._
 import scala.collection.immutable.Seq
 
 
+case class AlmapShape(val domain: IRPoly, val codomain: IRPoly) extends HasArity[AlmapShape] {
+  val arity: Int = domain.arity
+  if(codomain.arity != domain.arity) throw new IRValidationException()
+  def arityOp(op: ArityOp): AlmapShape = AlmapShape(domain.arityOp(op), codomain.arityOp(op))
+}
+
 sealed trait Almap extends HasInput[Almap] {
   //The domain and codomain sizes of this map
   val domain: IRPoly
   val codomain: IRPoly
+
+  def shape: AlmapShape = AlmapShape(domain, codomain)
 
   //Constraints that all the shape properties must share the map's arity
   def arityVerify() {
@@ -666,14 +674,14 @@ case class AlmapInput(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly]
     if(s.arity != arity) throw new IRValidationException()
   }
 
-  val domain: IRPoly = input.args(iidx).domain.substituteSeq(sidx)
-  val codomain: IRPoly = input.args(iidx).codomain.substituteSeq(sidx)
+  val domain: IRPoly = input.args(iidx).body.domain.substituteSeq(sidx)
+  val codomain: IRPoly = input.args(iidx).body.codomain.substituteSeq(sidx)
 
   def arityOp(op: ArityOp): Almap = AlmapInput(input.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
   def inputOp(op: InputOp): Almap = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).arity != input.args(i).domain.arity) throw new IRValidationException()
+      if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
     }
     op.xs(iidx).substituteSeq(sidx)
   }
@@ -702,14 +710,14 @@ case class AlmapInputT(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
     if(s.arity != arity) throw new IRValidationException()
   }
 
-  val domain: IRPoly = input.args(iidx).codomain.substituteSeq(sidx)
-  val codomain: IRPoly = input.args(iidx).domain.substituteSeq(sidx)
+  val domain: IRPoly = input.args(iidx).body.codomain.substituteSeq(sidx)
+  val codomain: IRPoly = input.args(iidx).body.domain.substituteSeq(sidx)
 
   def arityOp(op: ArityOp): Almap = AlmapInput(input.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
   def inputOp(op: InputOp): Almap = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).arity != input.args(i).codomain.arity) throw new IRValidationException()
+      if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
     }
     op.xs(iidx).substituteSeq(sidx)
   }
