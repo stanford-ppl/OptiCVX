@@ -299,6 +299,11 @@ case class Function(
     // the two functions to be added must take the same arguments
     if(input != y.input) throw new IRValidationException()
     if(argSize != y.argSize) throw new IRValidationException()
+    if(codomain != y.codomain) {
+      println(codomain)
+      println(y.codomain)
+      throw new IRValidationException()
+    }
     // form the output function
     Function(
       input,

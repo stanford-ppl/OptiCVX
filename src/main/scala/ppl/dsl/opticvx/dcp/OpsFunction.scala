@@ -65,6 +65,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
   def where(xs: CvxConstraint*): CvxWhere = new CvxWhere(Seq(xs:_*))
 
   def minimize(x: CvxExpr): CvxValue = {
+    if(x.size != IRPoly.const(1, globalArity)) throw new IRValidationException()
     val v: Signum = x.fx.vexity.reduce
     if(!(v <= Signum.Positive)) {
       println(v)
@@ -73,6 +74,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
     new CvxMinimize(x)
   }
   def maximize(x: CvxExpr): CvxValue = {
+    if(x.size != IRPoly.const(1, globalArity)) throw new IRValidationException()
     val v: Signum = x.fx.vexity.reduce
     if(!(v <= Signum.Negative)) {
       println(v)

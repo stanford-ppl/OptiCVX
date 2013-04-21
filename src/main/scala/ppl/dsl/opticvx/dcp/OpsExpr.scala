@@ -16,6 +16,14 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       if((lfx.arity == 0)&&(exprs.length > 0)) {
         lfx = lfx.promoteTo(exprs(0).fx.arity)
       }
+      //this is a hack for one-arity, one-argument functions that promotes them automatically
+      if((lfx.arity == 1)&&(exprs.length == 1)&&(lfx.argSize(0) == IRPoly.param(0, 1))) {
+        lfx = lfx.arityOp(ArityOp(exprs(0).fx.arity, Seq(exprs(0).size)))
+      }      
+      //verify that function arity is equal to expression arities
+      for(x <- exprs) {
+        if(x.fx.arity != lfx.arity) throw new IRValidationException()
+      }
       //this is a similar hack for zero-input functions
       if((lfx.input.args == Seq())&&(exprs.length > 0)) {
         val op = InputOp(exprs(0).fx.input, Seq(), Seq())
@@ -93,6 +101,18 @@ trait DCPOpsExpr extends DCPOpsGlobal {
     def *(x: CvxExpr): CvxExpr = {
       if(ma.dims.length != 0) throw new IRValidationException()
       val a: Almap = ma.body.promoteTo(globalArity)
+      val da: Almap = 
+        if(a.domain == x.size) {
+          a
+        }
+        else if((a.domain == IRPoly.const(1, globalArity))&&(a.codomain == IRPoly.const(1, globalArity))) {
+          AlmapDiagCatFor(x.size, a.promote)
+        }
+        else {
+          println(a.domain)
+          println(x.size)
+          throw new IRValidationException()
+        }
       CvxExpr(Function(
         x.fx.input,
         x.fx.argSize,
@@ -100,9 +120,9 @@ trait DCPOpsExpr extends DCPOpsGlobal {
         x.fx.tonicity map (t => t * Signum.All),
         x.fx.vexity * Signum.All,
         x.fx.varSize,
-        x.fx.valueArgAlmap map (x => a * x),
-        a * x.fx.valueVarAlmap,
-        a * x.fx.valueOffset,
+        x.fx.valueArgAlmap map (x => da * x),
+        da * x.fx.valueVarAlmap,
+        da * x.fx.valueOffset,
         x.fx.affineArgAlmap,
         x.fx.affineVarAlmap,
         x.fx.affineOffset,
@@ -115,7 +135,9 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       if(idxs.length != ma.dims.length) throw new IRValidationException()
       CvxInput(Multi(Seq(), ma.promoteTo(globalArity).body.substituteSeq(Seq(idxs:_*))))
     }
-    def T: CvxInput = CvxInput(ma.extend(a => a.T))
+    def T: CvxInput = {
+      CvxInput(ma.extend(a => a.T))
+    }
   }
 
   implicit def cvxinput2expr(a: CvxInput): CvxExpr = a * double2expr(1.0)
@@ -247,7 +269,7 @@ trait DCPOpsExpr extends DCPOpsGlobal {
       boundinput = null
     }
     def *(x: CvxExpr): CvxExpr = {
-      if(boundinput != null) throw new IRValidationException()
+      if(boundinput == null) throw new IRValidationException()
       boundinput * x
     }
   }

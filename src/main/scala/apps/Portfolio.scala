@@ -28,15 +28,15 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     println("defining a problem...")
     val prob = tictoc(problem(
       params(m, n),
-      given(inputmatrix(n,m) -> F, inputfor(n)(i => inputscalar) -> D, inputvector(n) -> mu, inputscalar -> gamma),
+      given(inputmatrix(m,n) -> F, inputfor(n)(i => inputscalar) -> D, inputvector(n) -> mu),
       over(vector(n) -> x), 
       let(),
       where(
         x.sum == 1.0,
         cfor(n) {i => x(i) >= 0.0}
       ),
-      minimize(
-        mu * x - gamma * (square(norm(F.T * x)) + sumfor(n) {i => D.at(i) * square(x(i))})
+      maximize(
+        (mu.T * x) - (square(norm(F.T * x)) + square(norm(xfor(n) {i => D.at(i) * x(i)})))
       )
     ))
     /* generate a solver */

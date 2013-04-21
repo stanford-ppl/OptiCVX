@@ -129,7 +129,7 @@ trait HasArity[T] {
       }
       val op = ArityOp(
         newarity,
-        (for(i <- 0 until arity) yield IRPoly.param(i, arity)) ++ irps)
+        (for(i <- 0 until newarity) yield IRPoly.param(i, newarity)) ++ irps)
       arityOp(op)
     }
   }

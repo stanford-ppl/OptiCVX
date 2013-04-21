@@ -716,13 +716,13 @@ case class AlmapInputT(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
   val domain: IRPoly = input.args(iidx).body.codomain.substituteSeq(sidx)
   val codomain: IRPoly = input.args(iidx).body.domain.substituteSeq(sidx)
 
-  def arityOp(op: ArityOp): Almap = AlmapInput(input.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
+  def arityOp(op: ArityOp): Almap = AlmapInputT(input.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
   def inputOp(op: InputOp): Almap = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
       if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
     }
-    op.xs(iidx).substituteSeq(sidx)
+    op.xs(iidx).substituteSeq(sidx).T
   }
 
   def T: Almap = Tcheck(AlmapInput(input, iidx, sidx))
