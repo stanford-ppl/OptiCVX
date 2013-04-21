@@ -17,9 +17,21 @@ case class InputDesc(val arity: Int, val args: Seq[Multi[AlmapShape]], val memor
     if(op.xs.length != arity) throw new IRValidationException()
     InputDesc(op.arity, args map (a => a.arityOp(op)), memory map (a => a.arityOp(op)))
   }
+
+  def inputparam(idx: Int): MultiW[Almap] = {
+    if((idx < 0)||(idx >= args.length)) throw new IRValidationException()
+    val m = args(idx)
+    MultiW(m.dims, AlmapInput(this.promoteBy(m.dims.length), idx, for (i <- 0 until m.dims.length) yield IRPoly.param(arity + i, arity + m.dims.length)))
+  }
+
+  def memoryparam(idx: Int): MultiW[AVector] = {
+    if((idx < 0)||(idx >= memory.length)) throw new IRValidationException()
+    val m = memory(idx)
+    MultiW(m.dims, AVectorRead(this.promoteBy(m.dims.length), idx, for (i <- 0 until m.dims.length) yield IRPoly.param(arity + i, arity + m.dims.length)))
+  }
 }
 
-case class InputOp(val input: InputDesc, val xs: Seq[Almap], val ms: Seq[AVector]) extends HasInput[InputOp] {
+case class InputOp(val input: InputDesc, val xs: Seq[MultiW[Almap]], val ms: Seq[MultiW[AVector]]) extends HasInput[InputOp] {
   val arity = input.arity
   for(x <- xs) {
     if(x.input != input) throw new IRValidationException()
@@ -43,33 +55,18 @@ trait HasInput[T] extends HasArity[T] {
     val newinput = InputDesc(arity, input.args, input.memory :+ arg)
     val op = InputOp(
       newinput,
-      for(i <- 0 until input.args.length) yield 
-        AlmapInput(
-          newinput.promoteBy(input.args(i).dims.length),
-          i,
-          for(j <- 0 until input.args(i).dims.length) yield
-            IRPoly.param(arity + j, arity + input.args(i).dims.length)),
-      for(i <- 0 until input.memory.length) yield
-        AVectorRead(
-          newinput.promoteBy(input.memory(i).dims.length),
-          i,
-          for(j <- 0 until input.memory(i).dims.length) yield
-            IRPoly.param(arity + j, arity + input.memory(i).dims.length)))
+      for(i <- 0 until input.args.length) yield newinput.inputparam(i),
+      for(i <- 0 until input.memory.length) yield newinput.memoryparam(i))
     inputOp(op)
   }
 
   def addMemory(args: Seq[Multi[IRPoly]]): T = {
     // TODO: Make this function more robust
     if(!isMemoryless) throw new IRValidationException()
-    val newinput = InputDesc(arity, input.args, input.memory ++ args)
+    val newinput = InputDesc(arity, input.args, args)
     val op = InputOp(
       newinput,
-      for(i <- 0 until input.args.length) yield 
-        AlmapInput(
-          newinput.promoteBy(input.args(i).dims.length),
-          i,
-          for(j <- 0 until input.args(i).dims.length) yield
-            IRPoly.param(arity + j, arity + input.args(i).dims.length)),
+      for(i <- 0 until input.args.length) yield newinput.inputparam(i),
       Seq())
     inputOp(op)
   }

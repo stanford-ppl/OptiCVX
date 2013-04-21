@@ -684,9 +684,9 @@ case class AlmapInput(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly]
   def inputOp(op: InputOp): Almap = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
+      if(op.xs(i).body.arity != input.args(i).body.arity) throw new IRValidationException()
     }
-    op.xs(iidx).substituteSeq(sidx)
+    op.xs(iidx).body.substituteSeq(sidx)
   }
 
   def T: Almap = Tcheck(AlmapInputT(input, iidx, sidx))
@@ -720,9 +720,9 @@ case class AlmapInputT(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
   def inputOp(op: InputOp): Almap = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).arity != input.args(i).body.arity) throw new IRValidationException()
+      if(op.xs(i).body.arity != input.args(i).body.arity) throw new IRValidationException()
     }
-    op.xs(iidx).substituteSeq(sidx).T
+    op.xs(iidx).body.substituteSeq(sidx).T
   }
 
   def T: Almap = Tcheck(AlmapInput(input, iidx, sidx))

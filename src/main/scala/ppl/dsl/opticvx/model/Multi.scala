@@ -19,7 +19,7 @@ case class Multi[T <: HasArity[T]](val dims: Seq[IRPoly], val body: T) extends H
   }
 
   def extend[U <: HasArity[U]](fx: T => U): Multi[U] = Multi(dims, fx(body))
-
+  def extendw[U <: HasInput[U]](fx: T => U): MultiW[U] = MultiW(dims, fx(body))
 }
 
 case class MultiW[T <: HasInput[T]](val dims: Seq[IRPoly], val body: T) extends HasInput[MultiW[T]] {
