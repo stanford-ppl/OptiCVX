@@ -3,6 +3,7 @@ package apps
 import java.io._
 import scala.collection.immutable.Seq
 import ppl.dsl.opticvx.dcp._
+import scala.util.Random
 
 object DCPPortfolioApp extends DCPOps with DCPLibrary {
   
@@ -21,7 +22,6 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val F = cvxinput
     val D = cvxinput
     val mu = cvxinput
-    val gamma = cvxinput
 
     val x = cvxexpr
 
@@ -41,7 +41,7 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     ))
     /* generate a solver */
     println("generating the solver...")
-    val solver = tictoc(prob.gen(PrimalDualHomogeneous))
+    val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.cgen())
@@ -49,12 +49,18 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     println("compiling C solver...")
     val csolver = tictoc(ccodeobj.compile())
     /* run the generated C code */
-    // println("solving the problem in C...")
-    // val csoln = tictoc(csolver.solve(n_in)(a_in)(tol))
-    // /* print out the results */
-    // println("converged in " + csoln.num_iterations + " iterations")
-    // println("x = " + csoln.resolve(x).map(d => "%1.6g" format d).mkString("[", ", ", "]"))
-    // println("y = " + csoln.resolve(y).map(d => "%1.6g" format d).mkString("[", ", ", "]"))
+    println("solving the problem in C...")
+    val rand = new scala.util.Random(42)
+    val m_in: Int = 30
+    val n_in: Int = 1000
+    val F_in: Seq[Seq[Double]] = for(i <- 0 until n_in) yield for (j <- 0 until m_in) yield 0.1*rand.nextGaussian()
+    val D_in: Seq[Double] = for(i <- 0 until n_in) yield 0.1*rand.nextGaussian()
+    val mu_in: Seq[Double] = for(i <- 0 until n_in) yield rand.nextGaussian()
+    val tol: Double = 1e-4
+    val csoln = tictoc(csolver.solve(m_in, n_in)(F_in, inputscalarseq(D_in), mu_in)(tol))
+    /* print out the results */
+    println("converged in " + csoln.num_iterations + " iterations")
+    println("x = " + csoln.resolve(x).map(d => "%+1.3f" format d).mkString("[", ", ", "]"))
     
   }
 }

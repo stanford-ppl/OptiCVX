@@ -77,34 +77,36 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val pp = Seq(params:_*)
       if(pp.length != arity) throw new IRValidationException()
       if(ins.length != numinputs) throw new IRValidationException()
-      val argarray: Array[String] = new Array[String](2 + pp.length)
-      argarray(0) = "bin/cgen.out"
-      argarray(1) = tolerance.toString
-      for(i <- 0 until pp.length) {
-        argarray(i + 2) = pp(i).toString
-      }
-      val rt = java.lang.Runtime.getRuntime()
-      val cproc = rt.exec(
-        argarray,
-        null,
-        new File("cgen"))
-      val vvsz = vvsize.eval(pp)(IntLikeInt)
-      val outw = new OutputStreamWriter(cproc.getOutputStream())
-      val out = new BufferedWriter(outw)
+      val fin = new File("cgen/data/in.dat")
+      val fwriter = new FileWriter(fin)
       for(a <- ins) {
         for(l <- a.linearize) {
-          out.write(l.formatc + "\n")
+          fwriter.write(l.formatc + "\n")
         }
       }
-      out.close()
-      outw.close()
-      val in = new BufferedReader(new InputStreamReader(cproc.getInputStream()))
-      val vv = for(i <- 0 until vvsz) yield in.readLine().toDouble
-      val Array(iterlabel: String, siterct: String) = in.readLine().split(" ")
-      if(iterlabel != "iterations:") throw new Exception("Expected iteration count label.")
-      val iterct: Int = siterct.toInt
+      fwriter.close()
+      var cmd: String = "bin/cgen.out " + tolerance.toString
+      for(i <- 0 until pp.length) {
+        cmd += " " + pp(i).toString
+      }
+      cmd += " <data/in.dat >data/out.dat 2>log/cgen.e"
+      val rt = java.lang.Runtime.getRuntime()
+      val cproc = rt.exec(
+        Array[String]("bash", "-c", cmd),
+        null,
+        new File("cgen"))
       val solverrv = cproc.waitFor()
       if(solverrv != 0) throw new Exception("Error in running generated program.")
+      val vvsz = vvsize.eval(pp)(IntLikeInt)
+      val fout = new File("cgen/data/out.dat")
+      val freader = new FileReader(fout)
+      val bfreader = new BufferedReader(freader)
+      val vv = for(i <- 0 until vvsz) yield bfreader.readLine().toDouble
+      val Array(iterlabel: String, siterct: String) = bfreader.readLine().split(" ")
+      if(iterlabel != "iterations:") throw new Exception("Expected iteration count label.")
+      val iterct: Int = siterct.toInt
+      bfreader.close()
+      freader.close()
       new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct, tolerance)
     }
   }
@@ -130,6 +132,10 @@ trait DCPOpsSolve extends DCPOpsFunction {
     val sas = as.foldLeft(Seq(): Seq[Double])((a,b) => a ++ b)
     val amd = MatrixDefinite(m, n, sas)
     MultiSeqA0(amd)
+  }
+
+  def inputscalarseq(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
+    MultiSeqN(1, as map (a => MultiSeqA0(MatrixDefinite(1,1,Seq(a)))))
   }
 
   class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int, val tolerance: Double) {
