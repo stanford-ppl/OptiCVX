@@ -6,7 +6,7 @@ import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
 
-object PrimalDualOperatorSplitting extends SolverGenUtil {
+object PrimalDualOperatorSplitting extends SolverGen with SolverGenUtil {
 
 
   def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {

@@ -6,7 +6,7 @@ import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
 
-object AlternatingProjections extends SolverGenUtil {
+object AlternatingProjections extends SolverGen with SolverGenUtil {
 
 
   def code(Ai: Almap, bi: AVector, Fi: Almap, gi: AVector, ci: AVector, cone: Cone, tol: AVector) {

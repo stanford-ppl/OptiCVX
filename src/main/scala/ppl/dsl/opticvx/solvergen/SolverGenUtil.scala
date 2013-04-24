@@ -5,7 +5,8 @@ import ppl.dsl.opticvx.model._
 import scala.collection.immutable.Seq
 
 
-trait SolverGenUtil extends SolverGen {
+trait SolverGenUtil {
+  self: SolverGen =>
 
   class OrthoNullProjectorPartial(val A: Almap) {
     private val u: SVariable = vector(A.domain)

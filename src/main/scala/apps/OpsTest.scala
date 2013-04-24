@@ -49,7 +49,7 @@ object DCPOpsTestApp extends DCPOps with DCPLibrary {
     ))
     /* generate a solver */
     println("generating the solver...")
-    val solver = tictoc(prob.gen(PrimalDualOperatorSplitting))
+    val solver = tictoc(prob.gen(PrimalDualHomogeneousEx))
     /* define variables to store the inputs we'll pass to the solver */
     val n_in: Int = 10
     val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0)
