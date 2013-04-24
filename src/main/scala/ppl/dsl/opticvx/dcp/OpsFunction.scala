@@ -11,7 +11,11 @@ trait DCPOpsFunction extends DCPOpsExpr {
   class CvxParams(val params: Seq[CvxParamSymbol])
 
   class CvxInputs(val inputs: Seq[CvxInputBinding])
-  class CvxInputBinding(val argdesc: Multi[AlmapShape], val symbol: CvxInputSymbol)
+  trait CvxInputDesc {
+    val shape: Multi[AlmapShape]
+    def proc(m: Multi[Almap]): Multi[Almap] 
+  }
+  class CvxInputBinding(val argdesc: CvxInputDesc, val symbol: CvxInputSymbol)
 
   class CvxArgs(val args: Seq[CvxArgBinding])
   class CvxArgBinding(val size: IRPoly, val symbol: CvxExprSymbol)
@@ -39,7 +43,7 @@ trait DCPOpsFunction extends DCPOpsExpr {
   def params(ps: CvxParamSymbol*): CvxParams = new CvxParams(Seq(ps:_*))
 
   def given(bs: CvxInputBinding*): CvxInputs = new CvxInputs(Seq(bs:_*))
-  implicit def inputbindingimpl(tpl: Tuple2[Multi[AlmapShape], CvxInputSymbol]): CvxInputBinding = 
+  implicit def inputbindingimpl(tpl: Tuple2[CvxInputDesc, CvxInputSymbol]): CvxInputBinding = 
     new CvxInputBinding(tpl._1, tpl._2)
 
   def args(as: CvxArgBinding*): CvxArgs = new CvxArgs(Seq(as:_*))
@@ -95,6 +99,52 @@ trait DCPOpsFunction extends DCPOpsExpr {
   implicit def int2cvxfunexprimpl(i: Int): CvxExpr = 
     double2cvxfunexprimpl(i.toDouble)
 
+
+  class CvxInputDescFlat(val shape: Multi[AlmapShape]) extends CvxInputDesc {
+    def proc(m: Multi[Almap]): Multi[Almap] = m
+  }
+
+  class CvxInputDescFor(val len: IRPoly, val cxfx: CvxInputDesc) extends CvxInputDesc {
+    val shape: Multi[AlmapShape] = Multi(cxfx.shape.dims :+ len, cxfx.shape.body)
+    def proc(m: Multi[Almap]): Multi[Almap] = cxfx.proc(m)
+  }
+
+  def inputscalar: CvxInputDesc = 
+    new CvxInputDescFlat(Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), IRPoly.const(1, globalArity))))
+
+  def inputvector(n: IRPoly): CvxInputDesc = {
+    if(n.arity != globalArity) throw new IRValidationException()
+    new CvxInputDescFlat(Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), n)))
+  }
+
+  def inputmatrix(m: IRPoly, n: IRPoly): CvxInputDesc = {
+    if(m.arity != globalArity) throw new IRValidationException()
+    if(n.arity != globalArity) throw new IRValidationException()
+    new CvxInputDescFlat(Multi(Seq(), AlmapShape(m, n)))
+  }
+
+  def inputfor(len: IRPoly)(fx: (IRPoly) => CvxInputDesc): CvxInputDesc = {
+    if(len.arity != globalArity) throw new IRValidationException()
+    globalArityPromote()
+    val cxfx = fx(len.next)
+    globalArityDemote()
+    new CvxInputDescFor(len, cxfx)
+  }
+
+  class CvxInputDescDiag(val n: IRPoly) extends CvxInputDesc {
+    val shape: Multi[AlmapShape] = Multi(Seq(n), AlmapShape(IRPoly.const(1, n.arity + 1), IRPoly.const(1, n.arity + 1)))
+    def proc(m: Multi[Almap]): Multi[Almap] = {
+      if(m.dims != Seq(n)) throw new IRValidationException()
+      Multi(Seq(), AlmapDiagCatFor(n, m.body))
+    }
+  }
+
+  def inputmatrixdiag(n: IRPoly): CvxInputDesc = {
+    if(n.arity != globalArity) throw new IRValidationException()
+    new CvxInputDescDiag(n)
+  }
+
+
   def cvxfun(
     ts_params: =>CvxParams,
     ts_inputs: =>CvxInputs,
@@ -116,12 +166,14 @@ trait DCPOpsFunction extends DCPOpsExpr {
     globalArity = s_params.length
     // bind the inputs
     val s_inputs: Seq[CvxInputBinding] = ts_inputs.inputs
-    val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
+    val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc.shape), Seq())
     for(i <- 0 until s_inputs.length) {
-      s_inputs(i).symbol.bind(CvxInput(Multi(
-        s_inputs(i).argdesc.dims, 
-        AlmapInput(s_inputsize.promoteBy(s_inputs(i).argdesc.dims.size), i,
-          for(j <- 0 until s_inputs(i).argdesc.dims.size) yield IRPoly.param(s_params.length + j, s_params.length + s_inputs(i).argdesc.dims.size)))))
+      val shapei = s_inputs(i).argdesc.shape
+      val dimsi = shapei.dims.size
+      val Mi: Multi[Almap] = Multi(shapei.dims, 
+        AlmapInput(s_inputsize.promoteBy(dimsi), i,
+          for(j <- 0 until dimsi) yield IRPoly.param(s_params.length + j, s_params.length + dimsi)))
+      s_inputs(i).symbol.bind(CvxInput(s_inputs(i).argdesc.proc(Mi)))
     }
     globalInputSize = s_inputsize
     // bind the arguments

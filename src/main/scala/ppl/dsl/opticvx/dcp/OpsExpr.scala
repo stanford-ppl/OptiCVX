@@ -327,26 +327,4 @@ trait DCPOpsExpr extends DCPOpsGlobal {
   def cvxinput(): CvxInputSymbol = new CvxInputSymbol
   def cvxexpr(): CvxExprSymbol = new CvxExprSymbol
 
-
-  def inputscalar: Multi[AlmapShape] = 
-    Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), IRPoly.const(1, globalArity)))
-
-  def inputvector(n: IRPoly): Multi[AlmapShape] = {
-    if(n.arity != globalArity) throw new IRValidationException()
-    Multi(Seq(), AlmapShape(IRPoly.const(1, globalArity), n))
-  }
-
-  def inputmatrix(m: IRPoly, n: IRPoly): Multi[AlmapShape] = {
-    if(m.arity != globalArity) throw new IRValidationException()
-    if(n.arity != globalArity) throw new IRValidationException()
-    Multi(Seq(), AlmapShape(m, n))
-  }
-
-  def inputfor(len: IRPoly)(fx: (IRPoly) => Multi[AlmapShape]) = {
-    if(len.arity != globalArity) throw new IRValidationException()
-    globalArityPromote()
-    val cxfx = fx(len.next)
-    globalArityDemote()
-    Multi(cxfx.dims :+ len, cxfx.body)
-  }
 }

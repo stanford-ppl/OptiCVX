@@ -111,17 +111,17 @@ trait DCPOpsSolve extends DCPOpsFunction {
     }
   }
 
-  implicit def inputscalardefinite(a: Double): MultiSeq[MatrixDefinite] = {
+  implicit def definitescalar(a: Double): MultiSeq[MatrixDefinite] = {
     val amd = MatrixDefinite(1, 1, Seq(a))
     MultiSeqA0(amd)
   }
 
-  implicit def inputvectordefinite(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
+  implicit def definitevector(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
     val amd = MatrixDefinite(as.length, 1, as)
     MultiSeqA0(amd)
   }
 
-  implicit def inputmatrixdefinite(as: Seq[Seq[Double]]): MultiSeq[MatrixDefinite] = {
+  implicit def definitematrix(as: Seq[Seq[Double]]): MultiSeq[MatrixDefinite] = {
     val m = as.length
     if(m < 1) throw new IRValidationException()
     val n = as(0).length
@@ -134,7 +134,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
     MultiSeqA0(amd)
   }
 
-  def inputscalarseq(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
+  def definitematrixdiag(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
     MultiSeqN(1, as map (a => MultiSeqA0(MatrixDefinite(1,1,Seq(a)))))
   }
 
@@ -163,12 +163,14 @@ trait DCPOpsSolve extends DCPOpsFunction {
     globalArity = s_params.length
     // bind the inputs
     val s_inputs: Seq[CvxInputBinding] = ts_inputs.inputs
-    val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc), Seq())
+    val s_inputsize = InputDesc(globalArity, s_inputs map (s => s.argdesc.shape), Seq())
     for(i <- 0 until s_inputs.length) {
-      s_inputs(i).symbol.bind(CvxInput(Multi(
-        s_inputs(i).argdesc.dims, 
-        AlmapInput(s_inputsize.promoteBy(s_inputs(i).argdesc.dims.size), i,
-          for(j <- 0 until s_inputs(i).argdesc.dims.size) yield IRPoly.param(s_params.length + j, s_params.length + s_inputs(i).argdesc.dims.size)))))
+      val shapei = s_inputs(i).argdesc.shape
+      val dimsi = shapei.dims.size
+      val Mi: Multi[Almap] = Multi(shapei.dims, 
+        AlmapInput(s_inputsize.promoteBy(dimsi), i,
+          for(j <- 0 until dimsi) yield IRPoly.param(s_params.length + j, s_params.length + dimsi)))
+      s_inputs(i).symbol.bind(CvxInput(s_inputs(i).argdesc.proc(Mi)))
     }
     globalInputSize = s_inputsize
     // there are no arguments or DCP information

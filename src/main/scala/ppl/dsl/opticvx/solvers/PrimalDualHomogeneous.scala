@@ -44,7 +44,7 @@ object PrimalDualHomogeneous extends SolverGenUtil {
       z := Mproj.proj(x - u, tol)
       x := K.project(z + u)
       u := u + z - x
-      cond := norm_inf(M*x) / sqrt(norm2(x))
+      cond := norm_inf(M*x)
     }
 
     x_out := slice(x, 0, varSize) / slice(x, varSize + affineCstrtSize + coneSize + coneSize, 1)
