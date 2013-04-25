@@ -25,6 +25,7 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val W = cvxinput
 
     val x = cvxexpr
+    val y = cvxexpr
 
     println("defining a problem...")
     val prob = tictoc(problem(

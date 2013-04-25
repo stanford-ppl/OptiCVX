@@ -115,7 +115,7 @@ trait SolverGenUtil {
     }
   }
 
-  //projects onto Ax + b = 0
+  //projects onto Ax = b
   class LSQRProject(val A: Almap, val b: AVector) {
     private val lsqr = new LSQR(A)
 
@@ -126,8 +126,52 @@ trait SolverGenUtil {
     def proj(x: AVector, itermax: Int): AVector = proj(x, 1e-3, itermax)
 
     def proj(x: AVector, tol: AVector, itermax: Int): AVector = {
-      x - lsqr.solve(A*x + b, tol, itermax)
+      x - lsqr.solve(A*x - b, tol, itermax)
     }
   }
+
+  //projects (u,v) onto Ax + s = b with preconditioner matrix M
+  class CGProject(val A: Almap, val Minv: Almap, b: AVector) {
+    private val x = vector(A.domain)
+    private val r = vector(A.domain)
+    private val q = vector(A.domain)
+    private val p = vector(A.domain)
+    private val Ap = vector(A.codomain)
+    private val alpha = scalar
+    private val beta = scalar
+    private val qr = scalar
+    private val qr_next = scalar
+    private val cond = scalar
+
+    var tol: AVector = 1e-3
+    var itermax: Int = -1
+
+    def proj(u: AVector, v: AVector, x0: AVector): AVector = {
+      x := x0
+      r := u - x - A.T * (A * x - b + v)
+      q := Minv * r
+      p := q
+      qr := dot(q, r)
+      cond := sqrt(norm2(r))
+
+      converge(cond - tol) {
+        Ap := A*p
+        alpha := dot(q, r) / (norm2(p) + norm2(Ap))
+        x := x + (p * alpha)
+        r := r - ((p - A.T * Ap) * alpha)
+        q := Minv * r
+        qr_next := dot(q, r)
+        beta := qr_next / qr
+        qr := qr_next
+        p := q + (p * beta)
+        cond := sqrt(norm2(r))
+      }
+
+      x
+    }
+
+  }
+
+  
 
 }

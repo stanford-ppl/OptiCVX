@@ -140,18 +140,24 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
   }
 
   var converge_iter_count: Int = 0
+  var converge_loop_depth: Int = 0
   def converge(memory: Seq[MultiSeq[Seq[Double]]], itermax: Int, body: (Seq[MultiSeq[Seq[Double]]]) => (Seq[MultiSeq[Seq[Double]]], Seq[Double])): Seq[MultiSeq[Seq[Double]]] = {
     var m = memory
     var cond: Boolean = true
     var i = 0
     while(cond && ((itermax == -1)||(i < itermax))) {
       val old_iter_count: Int = converge_iter_count
+      converge_loop_depth += 1
       val (nm, v) = body(m)
+      converge_loop_depth -= 1
       if(v.length != 1) throw new IRValidationException()
       cond = (v(0) > 0.0)
       m = nm
       if(old_iter_count == converge_iter_count) {
         converge_iter_count += 1
+      }
+      if(converge_loop_depth == 0) {
+        println(v(0))
       }
       i += 1
     }

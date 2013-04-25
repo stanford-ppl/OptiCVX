@@ -550,6 +550,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
   }
 
   var isconverge: Boolean = false
+  var converge_loop_depth: Int = 0
   def converge(memory: Seq[MemorySym], itermax: Int, body: (Seq[MemorySym]) => (Seq[MemorySym], VectorSym)): Seq[MemorySym] = {
     val ict = nextint
     if(itermax > 0) {
@@ -557,7 +558,9 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     }
     emit("while(1) {")
     isconverge = false
+    converge_loop_depth += 1
     val (newmem, cond) = body(memory)
+    converge_loop_depth -= 1
     if(newmem.length != memory.length) throw new IRValidationException()
     for(i <- 0 until newmem.length) {
       if(newmem(i).i != memory(i).i) throw new IRValidationException()
@@ -569,7 +572,9 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     if(itermax > 0) {
       emit("$ict++;\nif($ict >= " + itermax.toString + ") break;", "ict" -> ict)
     }
-    emit("if($cond <= 0.0) break;\n}", "cond" -> cond.at(intlikei.int2T(0)))
+    emit("if($cond <= 0.0) break;", "cond" -> cond.at(intlikei.int2T(0)))
+    emit("fprintf(stderr, \"" + ("  " * converge_loop_depth) + "cond = %g\\n\", $cond);", "cond" -> cond.at(intlikei.int2T(0)))
+    emit("}")
     isconverge = true
     newmem
   }

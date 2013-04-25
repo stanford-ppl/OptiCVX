@@ -38,7 +38,7 @@ object PrimalDualOperatorSplitting extends SolverGen with SolverGenUtil {
     val u = vector(varSize + affineCstrtSize + coneSize + coneSize)
     val cond = scalar
 
-    val Mproj = new LSQRProject(M, v)
+    val Mproj = new LSQRProject(M, -v)
 
     x := K.central_vector(A.input) //cat(zeros(varSize + affineCstrtSize + coneSize + coneSize), ones(2))
     u := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize))

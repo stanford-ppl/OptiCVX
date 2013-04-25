@@ -13,27 +13,35 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
     
     val x = vector(Ai.domain)
     val s_t = vector(Ai.codomain + Fi.codomain)
-    val xs_t = vector(Ai.domain + Ai.codomain + Fi.codomain)
+    //val xs_t = vector(Ai.domain + Ai.codomain + Fi.codomain)
     val s = vector(Ai.codomain + Fi.codomain)
     val y = vector(Ai.codomain + Fi.codomain)
 
     val A: Almap = AlmapVCat(-Ai, -Fi)
-    val P: Almap = AlmapHCat(A, AlmapIdentity(Ai.input, Ai.codomain + Fi.codomain))
+    //val P: Almap = AlmapHCat(A, AlmapIdentity(Ai.input, Ai.codomain + Fi.codomain))
     val b: AVector = AVectorCat(bi, gi)
     val c: AVector = ci
     val K: Cone = cat(zerocone(Ai.codomain), cone)
 
-    val Pproj = new LSQRProject(P, -b)
+    //val Pproj = new LSQRProject(P, b)
+    val Aproj = new CGProject(A, AlmapIdentity(A.input, A.domain), b)
+    Aproj.tol = tol
 
     val cond = scalar
     val cond1 = scalar
     val cond2 = scalar
     val cond3 = scalar
 
+    x := zeros(x.size)
+    s := zeros(s.size)
+    y := zeros(y.size)
+
     converge(cond - tol) {
-      xs_t := Pproj.proj(cat(x - c, s + y), tol * 0.001)
-      x := slice(xs_t, 0, Ai.domain)
-      s_t := slice(xs_t, Ai.domain, Ai.codomain + Fi.codomain) * 1.8 + s * (1.0 - 1.8)
+      // xs_t := Pproj.proj(cat(x - c, s + y), tol)
+      // x := slice(xs_t, 0, Ai.domain)
+      // s_t := slice(xs_t, Ai.domain, Ai.codomain + Fi.codomain) * 1.8 + s * (1.0 - 1.8)
+      x := Aproj.proj(x - c, s + y, x)
+      s_t := b - A * x
       s := K.project(s_t - y)
       y := y + s - s_t
       cond1 := norm_inf(A*x + s - b)
