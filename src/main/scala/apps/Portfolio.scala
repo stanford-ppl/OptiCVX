@@ -42,7 +42,7 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     ))
     /* generate a solver */
     println("generating the solver...")
-    val solver = tictoc(prob.gen(PrimalDualHomogeneous))
+    val solver = tictoc(prob.gen(PrimalDualProjections))
     /* generate code for the solver in C */
     println("generating C solver code...")
     val ccodeobj = tictoc(solver.cgen())

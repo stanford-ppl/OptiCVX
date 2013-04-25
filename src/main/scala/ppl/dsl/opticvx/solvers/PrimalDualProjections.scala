@@ -9,59 +9,38 @@ import scala.collection.immutable.Seq
 object PrimalDualProjections extends SolverGen with SolverGenUtil {
 
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
-    val varSize = A.domain
-    val affineCstrtSize = A.codomain
-    val coneSize = F.codomain
-
-    val x_out = vector(varSize)
-
-    // Mx + v = 0
-
-    val v = vector(varSize + affineCstrtSize + coneSize + 1)
-    v := cat(c, b, g, zeros(1))
-
-    val bm = v2m(b)
-    val cm = v2m(c)
-    val gm = v2m(g)
-
-    val M = vcat(
-      hcat(zeros(A.domain, A.domain), -A.T, -F.T, zeros(F.codomain, A.domain)),
-      hcat(A, zeros(A.codomain + F.codomain + F.codomain, A.codomain)),
-      hcat(F, zeros(A.codomain + F.codomain, F.codomain), -eye(F.codomain)),
-      hcat(cm.T, bm.T, gm.T, zeros(F.codomain, 1)))
-
-    val K = cat(freecone(A.domain + A.codomain), cone.conj, cone)
+  def code(Ai: Almap, bi: AVector, Fi: Almap, gi: AVector, ci: AVector, cone: Cone, tol: AVector) {
     
-    val x = vector(varSize + affineCstrtSize + coneSize + coneSize)
-    val z = vector(varSize + affineCstrtSize + coneSize + coneSize)
-    val u = vector(varSize + affineCstrtSize + coneSize + coneSize)
+    val x = vector(Ai.domain)
+    val s_t = vector(Ai.codomain + Fi.codomain)
+    val xs_t = vector(Ai.domain + Ai.codomain + Fi.codomain)
+    val s = vector(Ai.codomain + Fi.codomain)
+    val y = vector(Ai.codomain + Fi.codomain)
+
+    val A: Almap = AlmapVCat(-Ai, -Fi)
+    val P: Almap = AlmapHCat(A, AlmapIdentity(Ai.input, Ai.codomain + Fi.codomain))
+    val b: AVector = AVectorCat(bi, gi)
+    val c: AVector = ci
+    val K: Cone = cat(zerocone(Ai.codomain), cone)
+
+    val Pproj = new LSQRProject(P, -b)
+
     val cond = scalar
-
-    val w = vector(varSize + affineCstrtSize + coneSize + coneSize)
-    val Minv = new LSQR(M)
-    w := Minv.solve(v)
-
-    val s = vector(varSize + affineCstrtSize + coneSize + coneSize)
-    s := K.scaleest(w)
-    s := ones(s.size) * 20.0
-
-    val ws = vector(varSize + affineCstrtSize + coneSize + coneSize)
-    ws := elemdiv(w, s)
-
-    val Mproj = new LSQRProject(M * diag(s), zeros(v.size))
-
-    x := K.central_vector(A.input) //cat(zeros(varSize + affineCstrtSize + coneSize + coneSize), ones(2))
-    u := cat(zeros(varSize + affineCstrtSize + coneSize + coneSize))
+    val cond1 = scalar
+    val cond2 = scalar
+    val cond3 = scalar
 
     converge(cond - tol) {
-      z := Mproj.proj(x - u)
-      x := K.project(z + u)
-      u := u + z - x - ws
-      cond := norm_inf(M*elemmpy(x+ws, s))
+      xs_t := Pproj.proj(cat(x - c, s + y), tol * 0.001)
+      x := slice(xs_t, 0, Ai.domain)
+      s_t := slice(xs_t, Ai.domain, Ai.codomain + Fi.codomain) * 1.8 + s * (1.0 - 1.8)
+      s := K.project(s_t - y)
+      y := y + s - s_t
+      cond1 := norm_inf(A*x + s - b)
+      cond2 := norm_inf(A.T * y + c)
+      cond3 := norm_inf(dot(c, x) + dot(b, y))
+      cond := norm_inf(cat(cond1, cond2, cond3))
     }
-
-    x_out := slice(elemmpy(x,s), 0, varSize)
   }
 }
 

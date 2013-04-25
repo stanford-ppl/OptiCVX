@@ -49,10 +49,10 @@ object DCPOpsTestApp extends DCPOps with DCPLibrary {
     ))
     /* generate a solver */
     println("generating the solver...")
-    val solver = tictoc(prob.gen(PrimalDualHomogeneousEx))
+    val solver = tictoc(prob.gen(PrimalDualProjections))
     /* define variables to store the inputs we'll pass to the solver */
-    val n_in: Int = 3
-    val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0)
+    val n_in: Int = 4
+    val a_in: Seq[Double] = Seq(1.0, 2.0, 3.0, 4.0)
     val tol: Double = 1e-3
     /* this section of the code is commented out because running in scala is slow */
     // /* solve the problem */
