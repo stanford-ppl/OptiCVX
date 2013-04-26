@@ -149,16 +149,16 @@ trait SolverGenUtil {
     def proj(u: AVector, v: AVector, x0: AVector): AVector = {
       x := x0
       r := u - x - A.T * (A * x - b + v)
-      q := Minv * r
+      q := r
       p := q
       qr := dot(q, r)
       cond := sqrt(norm2(r))
 
-      converge(cond - tol) {
+      converge(cond - tol, itermax) {
         Ap := A*p
         alpha := dot(q, r) / (norm2(p) + norm2(Ap))
         x := x + (p * alpha)
-        r := r - ((p - A.T * Ap) * alpha)
+        r := r - ((p + A.T * Ap) * alpha)
         q := Minv * r
         qr_next := dot(q, r)
         beta := qr_next / qr

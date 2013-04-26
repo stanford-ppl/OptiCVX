@@ -156,9 +156,7 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
       if(old_iter_count == converge_iter_count) {
         converge_iter_count += 1
       }
-      if(converge_loop_depth == 0) {
-        println(v(0))
-      }
+      //println("  " * converge_loop_depth + "cond: " + v(0).toString)
       i += 1
     }
     m

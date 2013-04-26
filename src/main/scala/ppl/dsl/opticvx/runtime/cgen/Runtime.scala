@@ -459,32 +459,66 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     val rv = nextvector(osize)
     val i = nextint
     val j = nextint
-    emit("""
-      double $rv[$osize];
-      for(int $i = 0; $i < $osize; $i++) {
-        $rv[$i] = 0.0;
-        for(int $j = 0; $j < $isize; $j++) {
-          $rv[$i] += $m[$i*$isize+$j] * $x;
+    if(true) {
+      emit("""
+        double $rv[$osize];
+        for(int $i = 0; $i < $osize; $i++) {
+          $rv[$i] = 0.0;
+          for(int $j = 0; $j < $isize; $j++) {
+            $rv[$i] += $m[$i*$isize+$j] * $x;
+          }
         }
-      }
-      """,
-      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
+        """,
+        "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
+    }
+    else {
+      val k = nextint
+      emit("""
+        double $rv[$osize];
+        for(int $i = 0; $i < $osize; $i++) {
+          $rv[$i] = 0.0;
+        }
+        for(int $j = 0; $j < $isize; $j++) {
+          for(int $k = 0; $k < $osize; $k++) {
+            $rv[$k] += $m[$k*$isize+$j] * $x;
+          }
+        }
+        """,
+        "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "k" -> k, "x" -> x.at(j))
+    }
     rv
   }
   def matrixmpytranspose(m: MatrixSym, osize: IntSym, x: VectorSym): VectorSym = {
     val rv = nextvector(osize)
     val i = nextint
     val j = nextint
-    emit("""
-      double $rv[$osize];
-      for(int $i = 0; $i < $osize; $i++) {
-        $rv[$i] = 0.0;
-        for(int $j = 0; $j < $isize; $j++) {
-          $rv[$i] += $m[$j*$osize+$i] * $x;
+    if(true) {
+      emit("""
+        double $rv[$osize];
+        for(int $i = 0; $i < $osize; $i++) {
+          $rv[$i] = 0.0;
+          for(int $j = 0; $j < $isize; $j++) {
+            $rv[$i] += $m[$j*$osize+$i] * $x;
+          }
         }
-      }
-      """,
-      "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
+        """,
+        "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "x" -> x.at(j))
+    }
+    else {
+      val k = nextint
+      emit("""
+        double $rv[$osize];
+        for(int $i = 0; $i < $osize; $i++) {
+          $rv[$i] = 0.0;
+        }
+        for(int $j = 0; $j < $isize; $j++) {
+          for(int $k = 0; $k < $osize; $k++) {
+            $rv[$k] += $m[$j*$osize+$k] * $x;
+          }
+        }
+        """,
+        "m" -> m, "rv" -> rv, "isize" -> x.size, "osize" -> osize, "i" -> i, "j" -> j, "k" -> k, "x" -> x.at(j))
+    }
     rv
   }
 
@@ -573,7 +607,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
       emit("$ict++;\nif($ict >= " + itermax.toString + ") break;", "ict" -> ict)
     }
     emit("if($cond <= 0.0) break;", "cond" -> cond.at(intlikei.int2T(0)))
-    emit("fprintf(stderr, \"" + ("  " * converge_loop_depth) + "cond = %g\\n\", $cond);", "cond" -> cond.at(intlikei.int2T(0)))
+    //emit("fprintf(stderr, \"" + ("  " * converge_loop_depth) + "cond = %g\\n\", $cond);", "cond" -> cond.at(intlikei.int2T(0)))
     emit("}")
     isconverge = true
     newmem

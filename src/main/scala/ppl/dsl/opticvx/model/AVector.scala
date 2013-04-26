@@ -535,7 +535,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorMpyInput(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
+  def arityOp(op: ArityOp): AVector = AVectorMpyInputT(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
   def inputOp(op: InputOp): AVector = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
