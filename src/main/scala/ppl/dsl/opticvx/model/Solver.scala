@@ -12,13 +12,13 @@ trait SolverRuntime[I, M, N, V, W] {
   //base objects
   def size(arg: V): I
   def zero(size: I): V
-  def one: V
+  def const(data: Seq[Double]): V
   //linear operators
-  def sum(arg1: V, arg2: V): V
+  def sum(args: Seq[V]): V
   def sumfor(len: I, size: I, arg: (I => V)): V
   def neg(arg: V): V
   def scaleconstant(arg: V, scale: Double): V
-  def cat(arg1: V, arg2: V): V
+  def cat(args: Seq[V]): V
   def catfor(len: I, size: I, arg: (I => V)): V
   def slice(arg: V, at: I, size: I): V
   //nonlinear operators
@@ -32,7 +32,6 @@ trait SolverRuntime[I, M, N, V, W] {
   def norm_inf(arg: V): V
 
   def tolerance(): V
-
 
   def matrixmpy(m: M, osize: I, x: V): V
   def matrixmpytranspose(m: M, osize: I, x: V): V

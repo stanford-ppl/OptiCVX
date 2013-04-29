@@ -137,6 +137,7 @@ trait SolverGenUtil {
     private val q = vector(A.domain)
     private val p = vector(A.domain)
     private val Ap = vector(A.codomain)
+    private val ATAp = vector(A.domain)
     private val alpha = scalar
     private val beta = scalar
     private val qr = scalar
@@ -148,7 +149,10 @@ trait SolverGenUtil {
 
     def proj(u: AVector, v: AVector, x0: AVector): AVector = {
       x := x0
-      r := u - x - A.T * (A * x - b + v)
+      Ap := A * x
+      Ap := Ap - b + v
+      ATAp := A.T * Ap
+      r := u - x - ATAp
       q := r
       p := q
       qr := dot(q, r)
@@ -156,9 +160,10 @@ trait SolverGenUtil {
 
       converge(cond - tol, itermax) {
         Ap := A*p
-        alpha := dot(q, r) / (norm2(p) + norm2(Ap))
+        ATAp := A.T*Ap
+        alpha := qr / (norm2(p) + norm2(Ap))
         x := x + (p * alpha)
-        r := r - ((p + A.T * Ap) * alpha)
+        r := r - ((p + ATAp) * alpha)
         q := Minv * r
         qr_next := dot(q, r)
         beta := qr_next / qr

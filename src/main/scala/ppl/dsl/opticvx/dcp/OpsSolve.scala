@@ -36,7 +36,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val srt = new SolverRuntimeDefinite(tolerance)
       val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
       val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
-      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, tolerance)
+      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, 0.0, tolerance)
     }
     def cgen(): CvxSSolverCGen = {
       val srt = new SolverRuntimeCGen(solver.arity)
@@ -61,9 +61,11 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val fwriter = new FileWriter(fout)
       fwriter.write(srt.code)
       fwriter.close()
+      val cmd = "gcc --std=gnu99 -O3 -ffast-math -funroll-loops -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+      println("[exec] " + cmd)
       val rt = java.lang.Runtime.getRuntime()
       val cproc = rt.exec(
-        Array[String]("bash", "-c", "gcc --std=gnu99 -O3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"),
+        Array[String]("bash", "-c", cmd),
         null,
         new File("cgen"))
       val gccrv = cproc.waitFor()
@@ -91,6 +93,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
       }
       cmd += " <data/in.dat >data/out.dat 2>log/cgen.e"
       val rt = java.lang.Runtime.getRuntime()
+      println("[exec] " + cmd)
       val cproc = rt.exec(
         Array[String]("bash", "-c", cmd),
         null,
@@ -105,9 +108,12 @@ trait DCPOpsSolve extends DCPOpsFunction {
       val Array(iterlabel: String, siterct: String) = bfreader.readLine().split(" ")
       if(iterlabel != "iterations:") throw new Exception("Expected iteration count label.")
       val iterct: Int = siterct.toInt
+      val Array(timelabel: String, stimer: String) = bfreader.readLine().split(" ")
+      if(timelabel != "time:") throw new Exception("Expected time clock label.")
+      val timer: Double = stimer.toDouble
       bfreader.close()
       freader.close()
-      new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct, tolerance)
+      new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct, timer, tolerance)
     }
   }
 
@@ -138,7 +144,7 @@ trait DCPOpsSolve extends DCPOpsFunction {
     MultiSeqN(1, as map (a => MultiSeqA0(MatrixDefinite(1,1,Seq(a)))))
   }
 
-  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int, val tolerance: Double) {
+  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int, val timer: Double, val tolerance: Double) {
     def resolve(x: CvxExprSymbol): Seq[Double] = {
       val srt = new SolverRuntimeDefinite(tolerance)
       x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))

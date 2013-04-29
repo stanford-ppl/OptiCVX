@@ -50,6 +50,8 @@ object IRPoly {
 
 sealed trait IRPoly extends HasArity[IRPoly] {
   def is0: Boolean
+  def isConst: Boolean
+  def asConst: Int
 
   def +(y: IRPoly): IRPoly = {
     val x: IRPoly = this
@@ -223,6 +225,8 @@ sealed trait IRPoly extends HasArity[IRPoly] {
 case class IRPolyA0(val c0: Int) extends IRPoly {
   val arity: Int = 0
   def is0: Boolean = (c0 == 0)
+  def isConst: Boolean = true
+  def asConst: Int = c0
   // pretty printing (for debugging)
   def toString(varnames: Seq[String]): String = {
     if(varnames.length != 0) throw new IRValidationException()
@@ -242,6 +246,18 @@ case class IRPolyN(val arity: Int, val coeffs: Seq[IRPoly]) extends IRPoly {
   }
   // This is zero if it has no coefficients
   def is0: Boolean = (coeffs.length == 0)
+  def isConst: Boolean = (coeffs.length == 0)||((coeffs.length == 1)&&(coeffs(0).isConst))
+  def asConst: Int = {
+    if(coeffs.length == 0) {
+      0
+    }
+    else if(coeffs.length == 1) {
+      coeffs(0).asConst
+    }
+    else {
+      throw new IRValidationException()
+    }
+  }
   // pretty printing (for debugging)
   def toString(varnames: Seq[String]): String = {
     if(varnames.length != arity) throw new IRValidationException()

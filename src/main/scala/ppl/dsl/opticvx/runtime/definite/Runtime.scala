@@ -52,11 +52,13 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
   //base objects
   def size(arg: Seq[Double]): Int = arg.length
   def zero(size: Int): Seq[Double] = for(i <- 0 until size) yield 0.0
-  def one: Seq[Double] = Seq(1.0)
+  def const(data: Seq[Double]): Seq[Double] = data
   //linear operators
-  def sum(arg1: Seq[Double], arg2: Seq[Double]): Seq[Double] = {
-    if(arg1.length != arg2.length) throw new IRValidationException()
-    for(i <- 0 until arg1.length) yield arg1(i) + arg2(i)
+  def sum(args: Seq[Seq[Double]]): Seq[Double] = {
+    for(a <- args) {
+      if(a.length != args(0).length) throw new IRValidationException()
+    }
+    for(i <- 0 until args(0).length) yield args.foldLeft(0.0)((a,x) => a + x(i))
   }
   def sumfor(len: Int, size: Int, arg: (Int => Seq[Double])): Seq[Double] = {
     var rv: Seq[Double] = for (i <- 0 until size) yield 0.0
@@ -72,8 +74,8 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
   def scaleconstant(arg: Seq[Double], scale: Double): Seq[Double] = {
     for(a <- arg) yield a*scale
   }
-  def cat(arg1: Seq[Double], arg2: Seq[Double]): Seq[Double] = {
-    arg1 ++ arg2
+  def cat(args: Seq[Seq[Double]]): Seq[Double] = {
+    args.foldLeft(Seq[Double]())((a,b) => a ++ b)
   }
   def catfor(len: Int, size: Int, arg: (Int => Seq[Double])): Seq[Double] = {
     var rv: Seq[Double] = Seq()

@@ -1,6 +1,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include "solver.h"
 
 extern solver_t solver;
@@ -82,13 +83,16 @@ int main(int argc, char** argv) {
 
   int problem_size = solver.variable_size(params);
   double output[problem_size];
+  clock_t start = clock();
   solution_t solution = solver.solve(params, inputs, output, tolerance);
+  double elapsed = ((double)(clock() - start))/(CLOCKS_PER_SEC);
 
   for(int i = 0; i < problem_size; i++) {
     printf("%g\n", output[i]);
   }
 
   printf("iterations: %d\n", solution.num_iterations);
+  printf("time: %g\n", elapsed);
 
   return 0;
 

@@ -19,8 +19,10 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
 
     val A: Almap = AlmapVCat(-Ai, -Fi)
     //val P: Almap = AlmapHCat(A, AlmapIdentity(Ai.input, Ai.codomain + Fi.codomain))
-    val b: AVector = AVectorCat(bi, gi)
-    val c: AVector = ci
+    val b = vector(A.codomain)
+    b := AVectorCat(bi, gi)
+    val c = vector(A.domain)
+    c := ci
     val K: Cone = cat(zerocone(Ai.codomain), cone)
 
     val acn = vector(A.domain)
@@ -30,6 +32,7 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
       AVectorCatFor(A.domain, AVectorDiv(AVectorOne(A.input.promote), AVectorOne(A.input.promote) + AVectorNorm2(A.promote * ei)))
     }
     val M: Almap = AlmapDiagVector(acn)
+    //val M: Almap = AlmapIdentity(A.input, A.domain)
 
     //val Pproj = new LSQRProject(P, b)
     val Aproj = new CGProject(A, M, b)
@@ -46,17 +49,23 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
     y := zeros(y.size)
     cond := 1.0
 
+    val Ax = vector(A.codomain)
+    val ATy = vector(A.domain)
+    val z = vector(x.size)
+
     converge(cond - tol) {
       // xs_t := Pproj.proj(cat(x - c, s + y), tol)
       // x := slice(xs_t, 0, Ai.domain)
       // s_t := slice(xs_t, Ai.domain, Ai.codomain + Fi.codomain) * 1.8 + s * (1.0 - 1.8)
       x := Aproj.proj(x - c, s + y, x)
-      s_t := b - A * x
+      Ax := A * x
+      s_t := b - Ax
       s_t := s_t * 1.8 + s * (1.0 - 1.8)
       s := K.project(s_t - y)
       y := y + s - s_t
-      cond1 := norm_inf(A*x + s - b)
-      cond2 := norm_inf(A.T * y + c)
+      ATy := A.T * y
+      cond1 := norm_inf(Ax + s - b)
+      cond2 := norm_inf(ATy + c)
       cond3 := norm_inf(dot(c, x) + dot(b, y))
       cond := norm_inf(cat(cond1, cond2, cond3))
     }

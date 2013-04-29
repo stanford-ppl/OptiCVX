@@ -23,7 +23,7 @@ trait SolverGen {
 
     def :=(src: AVector) {
       if(!prephase) {
-        solveracc = SolverSeq(solveracc, SolverWrite(src, iidx, sidx))
+        solveracc = SolverSeq(solveracc, SolverWrite(src.simplify, iidx, sidx))
       }
     }
     def +=(src: AVector) {

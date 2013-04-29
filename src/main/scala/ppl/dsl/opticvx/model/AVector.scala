@@ -60,8 +60,8 @@ trait AVector extends HasInput[AVector] {
     //if(!(size.isNonNegative)) throw new IRValidationException()
   }
 
-  def +(u: AVector) = AVectorSum(this, u)
-  def -(u: AVector) = AVectorSum(this, AVectorNeg(u))
+  def +(u: AVector) = AVectorSum(Seq(this, u))
+  def -(u: AVector) = AVectorSum(Seq(this, AVectorNeg(u)))
   def unary_-() = AVectorNeg(this)
   def ++(u: AVector) = AVectorCat(this, u)
   def *(u: AVector) = AVectorMpy(this, u)
@@ -97,18 +97,18 @@ case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
   override def toString: String = "zero(" + size.toString + ")"
 }
 
-case class AVectorOne(val input: InputDesc) extends AVector {
+object AVectorOne {
+  def apply(input: InputDesc): AVectorConst = AVectorConst(input, Seq(1.0))
+}
+case class AVectorConst(val input: InputDesc, val data: Seq[Double]) extends AVector {
   val arity: Int = input.arity
-  val size: IRPoly = IRPoly.const(1, arity)
+  val size: IRPoly = IRPoly.const(data.size, arity)
   arityVerify()
   def arityOp(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
-    AVectorOne(input.arityOp(op))
+    AVectorConst(input.arityOp(op), data)
   }
-  def inputOp(op: InputOp): AVector = AVectorOne(op.input)
-  // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
-  //   e.one
-  // }
+  def inputOp(op: InputOp): AVector = AVectorConst(op.input, data)
   def is0: Boolean = false
   def isPure: Boolean = true
 
@@ -118,37 +118,49 @@ case class AVectorOne(val input: InputDesc) extends AVector {
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.one
+    runtime.const(data)
   }
 
-  def simplify: AVector = this
+  def simplify: AVector = {
+    if(data forall (a => a == 0)) {
+      AVectorZero(input, size)
+    }
+    else {
+      this
+    }
+  }
 
-  override def toString: String = "one()"
+  override def toString: String = "const(...)"
 }
 
-case class AVectorSum(val arg1: AVector, val arg2: AVector) extends AVector {
-  val arity: Int = arg1.arity
-  val input: InputDesc = arg1.input
-  val size: IRPoly = arg1.size
+object AVectorSum {
+  def apply(arg1: AVector, arg2: AVector): AVectorSum = AVectorSum(Seq(arg1, arg2))
+}
+case class AVectorSum(val args: Seq[AVector]) extends AVector {
+  val arity: Int = args(0).arity
+  val input: InputDesc = args(0).input
+  val size: IRPoly = args(0).size
 
-  if(arg1.arity != arg2.arity) throw new IRValidationException()
-  if(arg1.input != arg2.input) throw new IRValidationException()
-  if(arg1.size != arg2.size) throw new IRValidationException()
+  for(a <- args.drop(1)) {
+    if(a.arity != args(0).arity) throw new IRValidationException()
+    if(a.input != args(0).input) throw new IRValidationException()
+    if(a.size != args(0).size) throw new IRValidationException()
+  }
 
   arityVerify()
 
   def arityOp(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
-    AVectorSum(arg1.arityOp(op), arg2.arityOp(op))
+    AVectorSum(args map (a => a.arityOp(op)))
   }
-  def inputOp(op: InputOp): AVector = AVectorSum(arg1.inputOp(op), arg2.inputOp(op))
+  def inputOp(op: InputOp): AVector = AVectorSum(args map (a => a.inputOp(op)))
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
   //   e.sum(arg1.translate, arg2.translate)
   // }
 
-  def is0: Boolean = arg1.is0 && arg2.is0
-  def isPure: Boolean = arg1.isPure && arg2.isPure
+  def is0: Boolean = args forall (a => a.is0)
+  def isPure: Boolean = args forall (a => a.isPure)
 
   def eval[I, M, N, V, W](
     runtime: SolverRuntime[I, M, N, V, W], 
@@ -156,26 +168,34 @@ case class AVectorSum(val arg1: AVector, val arg2: AVector) extends AVector {
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.sum(
-      arg1.eval(runtime, params, inputs, memory), 
-      arg2.eval(runtime, params, inputs, memory))
+    runtime.sum(args map (a => a.eval(runtime, params, inputs, memory)))
   }
 
   def simplify: AVector = {
-    val sa1 = arg1.simplify
-    val sa2 = arg2.simplify
-    if(sa1.is0) {
-      sa2
+    val sa = args map (a => a.simplify)
+    val saf = sa flatMap (a => {
+      if(a.is0) {
+        Seq()
+      }
+      else if(a.isInstanceOf[AVectorSum]) {
+        a.asInstanceOf[AVectorSum].args
+      }
+      else {
+        Seq(a)
+      }
+    })
+    if(saf.length == 0) {
+      AVectorZero(input, size)
     }
-    else if(sa2.is0) {
-      sa1
+    else if(saf.length == 1) {
+      saf(0)
     }
     else {
-      AVectorSum(sa1, sa2)
+      AVectorSum(saf)
     }
   }
 
-  override def toString: String = "sum(" + arg1.toString + ", " + arg2.toString + ")"
+  override def toString: String = "sum(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
 case class AVectorNeg(val arg: AVector) extends AVector {
@@ -210,6 +230,9 @@ case class AVectorNeg(val arg: AVector) extends AVector {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
+    }
+    else if(arg.isInstanceOf[AVectorConst]) {
+      AVectorConst(input, for(u <- arg.asInstanceOf[AVectorConst].data) yield -u)
     }
     else {
       AVectorNeg(sa)
@@ -269,6 +292,18 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
     if(sa.is0) {
       AVectorZero(input, size)
     }
+    else if(scale == 0.0) {
+      AVectorZero(input, size)
+    }
+    else if(scale == 1.0) {
+      sa
+    }
+    else if(scale == -1.0) {
+      AVectorNeg(sa).simplify
+    }
+    else if(arg.isInstanceOf[AVectorConst]) {
+      AVectorConst(input, for(u <- arg.asInstanceOf[AVectorConst].data) yield u * scale)
+    }
     else {
       AVectorScaleConstant(sa, scale)
     }
@@ -277,25 +312,30 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
   override def toString: String = "scale(" + arg.toString + ", " + scale.toString + ")"
 }
 
-case class AVectorCat(val arg1: AVector, val arg2: AVector) extends AVector {
-  val arity: Int = arg1.arity
-  val input: InputDesc = arg1.input
-  val size: IRPoly = arg1.size + arg2.size
+object AVectorCat {
+  def apply(arg1: AVector, arg2: AVector): AVectorCat = AVectorCat(Seq(arg1, arg2))
+}
+case class AVectorCat(val args: Seq[AVector]) extends AVector {
+  val arity: Int = args(0).arity
+  val input: InputDesc = args(0).input
+  val size: IRPoly = args.drop(1).foldLeft(args(0).size)((a,u) => a + u.size)
 
-  if(arg1.arity != arg2.arity) throw new IRValidationException()
-  if(arg1.input != arg2.input) throw new IRValidationException()
+  for(a <- args.drop(1)) {
+    if(a.arity != args(0).arity) throw new IRValidationException()
+    if(a.input != args(0).input) throw new IRValidationException()
+  }
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorCat(arg1.arityOp(op), arg2.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorCat(arg1.inputOp(op), arg2.inputOp(op))
+  def arityOp(op: ArityOp): AVector = AVectorCat(args map (a => a.arityOp(op)))
+  def inputOp(op: InputOp): AVector = AVectorCat(args map (a => a.inputOp(op)))
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = translateCheck {
   //   e.cat(arg1.translate, arg2.translate)
   // }
 
-  def is0: Boolean = arg1.is0 && arg2.is0
-  def isPure: Boolean = arg1.isPure && arg2.isPure
+  def is0: Boolean = args forall (a => a.is0)
+  def isPure: Boolean = args forall (a => a.isPure)
 
   def eval[I, M, N, V, W](
     runtime: SolverRuntime[I, M, N, V, W], 
@@ -303,29 +343,53 @@ case class AVectorCat(val arg1: AVector, val arg2: AVector) extends AVector {
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.cat(
-      arg1.eval(runtime, params, inputs, memory), 
-      arg2.eval(runtime, params, inputs, memory))
+    runtime.cat(args map (a => a.eval(runtime, params, inputs, memory)))
   }
 
   def simplify: AVector = {
-    val sa1 = arg1.simplify
-    val sa2 = arg2.simplify
-    if(sa1.is0 && sa2.is0) {
+    val sa = args map (a => a.simplify)
+    val saf = sa flatMap (a => {
+      if(a.size == IRPoly.const(0, arity)) {
+        Seq()
+      }
+      else if(a.isInstanceOf[AVectorCat]) {
+        a.asInstanceOf[AVectorCat].args
+      }
+      else {
+        Seq(a)
+      }
+    })
+    if(saf.length == 0) {
       AVectorZero(input, size)
     }
-    else if(sa1.size == IRPoly.const(0, arity)) {
-      sa2
-    }
-    else if(sa2.size == IRPoly.const(0, arity)) {
-      sa1
-    }
     else {
-      AVectorCat(sa1, sa2)
+      val salf = saf.drop(1).foldLeft(Seq(saf(0))) {(a,u) => 
+        if((u.is0)&&(a.last.is0)) {
+          a.dropRight(1) :+ AVectorZero(input, a.last.size + u.size)
+        }
+        else if((u.isInstanceOf[AVectorConst])&&(a.last.isInstanceOf[AVectorConst])) {
+          a.dropRight(1) :+ AVectorConst(input, a.last.asInstanceOf[AVectorConst].data ++ u.asInstanceOf[AVectorConst].data)
+        }
+        else if((u.is0)&&(u.size.isConst)&&(a.last.isInstanceOf[AVectorConst])) {
+          a.dropRight(1) :+ AVectorConst(input, a.last.asInstanceOf[AVectorConst].data ++ (for(i <- 0 until u.size.asConst) yield 0.0))
+        }
+        else if((a.last.is0)&&(a.last.size.isConst)&&(u.isInstanceOf[AVectorConst])) {
+          a.dropRight(1) :+ AVectorConst(input, (for(i <- 0 until a.last.size.asConst) yield 0.0) ++ u.asInstanceOf[AVectorConst].data)
+        }
+        else {
+          a :+ u
+        }
+      }
+      if(salf.length == 1) {
+        salf(0)
+      }
+      else {
+        AVectorCat(salf)
+      }
     }
   }
 
-  override def toString: String = "cat(" + arg1.toString + ", " + arg2.toString + ")"
+  override def toString: String = "cat(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
 case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
@@ -420,6 +484,9 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
     }
     else if(size == IRPoly.const(0, arity)) {
       AVectorZero(input, size)
+    }
+    else if(sb.isInstanceOf[AVectorConst]&&at.isConst&&size.isConst) {
+      AVectorConst(input, sb.asInstanceOf[AVectorConst].data.slice(at.asConst, at.asConst + size.asConst))
     }
     else {
       AVectorSlice(sb, at, size)

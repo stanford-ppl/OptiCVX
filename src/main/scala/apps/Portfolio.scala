@@ -59,12 +59,13 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val F_in: Seq[Seq[Double]] = for(i <- 0 until n_in) yield for (j <- 0 until m_in) yield scala.math.sqrt(gamma_in) * rand.nextGaussian()
     val D_in: Seq[Double] = for(i <- 0 until n_in) yield scala.math.sqrt(2*gamma_in*rand.nextDouble())
     val mu_in: Seq[Double] = for(i <- 0 until n_in) yield scala.math.exp(rand.nextGaussian())
-    val W_in: Double = n_in.toDouble
+    val W_in: Double = 1.0 //n_in.toDouble
     val tol: Double = 1e-4
     println("solving the problem in C...")
     val csoln = tictoc(csolver.solve(m_in, n_in)(F_in, definitematrixdiag(D_in), mu_in, W_in)(tol))
     /* print out the results */
     println("converged in " + csoln.num_iterations + " iterations")
+    println("converged in " + csoln.timer + " seconds")
     println("x = " + csoln.resolve(x).map(d => "%+1.3f" format d).mkString("[", ", ", "]"))
     
   }
