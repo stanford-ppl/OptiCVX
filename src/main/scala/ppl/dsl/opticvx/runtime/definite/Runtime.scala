@@ -131,7 +131,7 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
     if(vecs(at).length != src.length) throw new IRValidationException()
     vecs.updated(at, src)
   }
-  def vectorput(src: Seq[Double]): MultiSeq[Seq[Double]] = MultiSeqA0(src)
+  // def vectorput(src: Seq[Double]): MultiSeq[Seq[Double]] = MultiSeqA0(src)
 
   //case class MemAllocDesc(val dims: Seq[I], val size: Seq[I] => I)
   def memoryallocfor(dim: Int, ar: Int, body: Int => MultiSeq[Seq[Double]]): MultiSeq[Seq[Double]] = {
