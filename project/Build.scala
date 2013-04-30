@@ -8,4 +8,6 @@ object OptiCVXBuild extends Build {
     lazy val common = Project(id = "opticvx-common", base = file("partial/common"))
 
     lazy val model = Project(id = "opticvx-model", base = file("partial/model"))
+
+    lazy val solvergen = Project(id = "opticvx-solvergen", base = file("partial/solvergen"))
 }

@@ -6,43 +6,6 @@ import scala.collection.immutable.Seq
 
 import ppl.dsl.opticvx.solvers._
 
-// TODO: MatrixDefinite class has opposite domain/codomain order from other classes
-case class MatrixDefinite(m: Int, n: Int, data: Seq[Double]) {
-  if(data.length != m*n) throw new IRValidationException()
-  def getat(i: Int, j: Int): Double = {
-    if((i < 0)||(i >= m)||(j < 0)||(j >= n)) throw new IRValidationException()
-    data(i + m*j)
-  }
-  def mmpy(x: Seq[Double]) = {
-    if(x.length != n) throw new IRValidationException()
-    for (i <- 0 until m) yield {
-      (0 until n).foldLeft(0.0)((a, j) => a + getat(i, j)*x(j))
-    }
-  }
-  def mmpyT(x: Seq[Double]) = {
-    if(x.length != m) throw new IRValidationException()
-    for (i <- 0 until n) yield {
-      (0 until m).foldLeft(0.0)((a, j) => a + getat(j, i)*x(j))
-    }
-  }
-  def formatc: String = {
-    var rv: String = ""
-    for(i <- 0 until data.length) {
-      if(i == 0) {
-        rv += "[ "
-      }
-      else if(i % n == 0) {
-        rv += "; "
-      }
-      else {
-        rv += ", "
-      }
-      rv += data(i).toString
-    }
-    rv += " ]"
-    rv
-  }
-}
 
 class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]] {
   //INTEGER OPERATIONS
