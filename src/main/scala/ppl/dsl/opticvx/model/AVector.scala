@@ -1,7 +1,7 @@
 package ppl.dsl.opticvx.model
 
 import ppl.dsl.opticvx.common._
-import scala.collection.immutable.Seq
+import scala.collection.immutable._
 
 object AVector {
   // def input(at: IRPoly, len: IRPoly): AVector = {
@@ -70,6 +70,17 @@ trait AVector extends HasInput[AVector] {
   def is0: Boolean
   def isPure: Boolean
   def simplify: AVector
+
+  def getSubexprs: Map[AVector, Int]
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector
+
+  protected def reduceSubexprs(sx: Seq[Map[AVector, Int]]): Map[AVector, Int] = {
+    val sav: Set[AVector] = sx.foldLeft(Set[AVector]())((a, u) => a union u.keySet)
+    val sq: Set[Tuple2[AVector, Int]] = for(k <- sav) yield {
+      (k, sx.foldLeft(0)((a, u) => a + u.getOrElse(k, 0)))
+    }
+    Map(sq.toSeq:_*)
+  }
 }
 
 case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
@@ -93,6 +104,9 @@ case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
   }
 
   def simplify: AVector = this
+
+  def getSubexprs: Map[AVector, Int] = Map()
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
 
   override def toString: String = "zero(" + size.toString + ")"
 }
@@ -129,6 +143,9 @@ case class AVectorConst(val input: InputDesc, val data: Seq[Double]) extends AVe
       this
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = Map()
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
 
   override def toString: String = "const(...)"
 }
@@ -195,6 +212,19 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
     }
   }
 
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = (args map (a => a.getSubexprs)) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorSum(args map (a => a.replaceSubexpr(oldx, newx)))
+    }
+  }
+
   override def toString: String = "sum(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
@@ -236,6 +266,19 @@ case class AVectorNeg(val arg: AVector) extends AVector {
     }
     else {
       AVectorNeg(sa)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorNeg(arg.replaceSubexpr(oldx, newx))
     }
   }
 
@@ -306,6 +349,19 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
     }
     else {
       AVectorScaleConstant(sa, scale)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorScaleConstant(arg.replaceSubexpr(oldx, newx), scale)
     }
   }
 
@@ -389,6 +445,19 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
     }
   }
 
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = (args map (a => a.getSubexprs)) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorCat(args map (a => a.replaceSubexpr(oldx, newx)))
+    }
+  }
+
   override def toString: String = "cat(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
@@ -437,6 +506,21 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
     }
     else {
       AVectorCatFor(len, sb)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxb: Map[AVector, Int] = arg.getSubexprs
+    val sxbf: Map[AVector, Int] = sxb.filterKeys((k) => k.invariantAt(arity))
+    val sxdf: Map[AVector, Int] = sxbf map ((t) => (t._1.demote, t._2))
+    sxdf + ((this: AVector) -> 1)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorCatFor(len, arg.replaceSubexpr(oldx.promote, newx.promote))
     }
   }
 
@@ -493,6 +577,19 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
     }
   }
 
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorSlice(arg.replaceSubexpr(oldx, newx), at, size)
+    }
+  }
+
   override def toString: String = "slice(" + arg.toString + ", " + at.toString + ", " + size.toString + ")"
 }
 
@@ -537,6 +634,21 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
     }
     else {
       AVectorSumFor(len, sb)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxb: Map[AVector, Int] = arg.getSubexprs
+    val sxbf: Map[AVector, Int] = sxb.filterKeys((k) => k.invariantAt(arity))
+    val sxdf: Map[AVector, Int] = sxbf map ((t) => (t._1.demote, t._2))
+    sxdf + ((this: AVector) -> 1)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorSumFor(len, arg.replaceSubexpr(oldx.promote, newx.promote))
     }
   }
 
@@ -590,6 +702,19 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
     }
   }
 
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorMpyInput(arg.replaceSubexpr(oldx, newx), iidx, sidx)
+    }
+  }
+
   override def toString: String = "mpyinput(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
 }
 
@@ -639,6 +764,20 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
       AVectorMpyInputT(sa, iidx, sidx)
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorMpyInputT(arg.replaceSubexpr(oldx, newx), iidx, sidx)
+    }
+  }
+
   override def toString: String = "mpyinputT(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
 }
 
@@ -680,6 +819,9 @@ case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
   def isPure: Boolean = false
 
   def simplify: AVector = this
+
+  def getSubexprs: Map[AVector, Int] = Map()
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
 
   override def toString: String = "read(@" + iidx.toString + "[" + sidx.toString + "])"
 }
@@ -723,6 +865,19 @@ case class AVectorDot(val arg1: AVector, val arg2: AVector) extends AVector {
     }
     else {
       AVectorDot(sa1, sa2)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg1.getSubexprs, arg2.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorDot(arg1.replaceSubexpr(oldx, newx), arg2.replaceSubexpr(oldx, newx))
     }
   }
 
@@ -770,6 +925,19 @@ case class AVectorMpy(val arg: AVector, val scale: AVector) extends AVector {
       AVectorMpy(sa, ss)
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs, scale.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorMpy(arg.replaceSubexpr(oldx, newx), scale.replaceSubexpr(oldx, newx))
+    }
+  }
 }
 
 case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
@@ -814,6 +982,19 @@ case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
       AVectorDiv(sa, ss)
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs, scale.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorDiv(arg.replaceSubexpr(oldx, newx), scale.replaceSubexpr(oldx, newx))
+    }
+  }
 }
 
 
@@ -854,6 +1035,19 @@ case class AVectorSqrt(val arg: AVector) extends AVector {
       AVectorSqrt(sa)
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorSqrt(arg.replaceSubexpr(oldx, newx))
+    }
+  }
 }
 
 case class AVectorNorm2(val arg: AVector) extends AVector {
@@ -885,6 +1079,19 @@ case class AVectorNorm2(val arg: AVector) extends AVector {
   def simplify: AVector = {
     val sa = arg.simplify
     AVectorNorm2(sa)
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorNorm2(arg.replaceSubexpr(oldx, newx))
+    }
   }
 }
 
@@ -918,6 +1125,19 @@ case class AVectorNormInf(val arg: AVector) extends AVector {
   def simplify: AVector = {
     val sa = arg.simplify
     AVectorNormInf(sa)
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorNormInf(arg.replaceSubexpr(oldx, newx))
+    }
   }
 }
 
@@ -960,6 +1180,19 @@ case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
     }
     else {
       AVectorMax(sa1, sa2)
+    }
+  }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg1.getSubexprs, arg2.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorMax(arg1.replaceSubexpr(oldx, newx), arg2.replaceSubexpr(oldx, newx))
     }
   }
 }
@@ -1005,6 +1238,19 @@ case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
       AVectorMin(sa1, sa2)
     }
   }
+
+  def getSubexprs: Map[AVector, Int] = {
+    val sxas: Seq[Map[AVector, Int]] = Seq(arg1.getSubexprs, arg2.getSubexprs) :+ Map((this: AVector) -> 1)
+    reduceSubexprs(sxas)
+  }
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = {
+    if(this == oldx) {
+      newx
+    }
+    else {
+      AVectorMin(arg1.replaceSubexpr(oldx, newx), arg2.replaceSubexpr(oldx, newx))
+    }
+  }
 }
 
 case class AVectorTolerance(val input: InputDesc) extends AVector {
@@ -1027,4 +1273,43 @@ case class AVectorTolerance(val input: InputDesc) extends AVector {
   }
 
   def simplify: AVector = this
+
+  def getSubexprs: Map[AVector, Int] = Map()
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
 }
+
+case class AVectorLet(val lex: AVector, val body: AVector) extends AVector {
+  val arity: Int = lex.arity
+  val input: InputDesc = lex.input
+  val size: IRPoly = body.size
+
+  if(body.input != InputDesc(arity, lex.input.args, lex.input.memory :+ Multi(Seq(), lex.size))) throw new IRValidationException()
+
+  def arityOp(op: ArityOp): AVector = AVectorLet(lex.arityOp(op), body.arityOp(op))
+  def inputOp(op: InputOp): AVector = AVectorLet(lex.inputOp(op), body.inputOp(op.pushMemory(Multi(Seq(), lex.size))))
+
+  def is0: Boolean = body.is0
+  def isPure: Boolean = body.isPure && lex.isPure
+
+  def simplify: AVector = {
+    val op = InputOp(
+      input,
+      for(i <- 0 until input.args.length) yield input.inputparam(i),
+      ((for(i <- 0 until input.memory.length) yield input.memoryparam(i)): Seq[MultiW[AVector]]) :+ MultiW(Seq(), lex))
+    body.inputOp(op)
+  }
+
+  def eval[I, M, N, V, W](
+    runtime: SolverRuntime[I, M, N, V, W], 
+    params: Seq[I], 
+    inputs: Seq[N],
+    memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
+  {
+    val elex: V = lex.eval(runtime, params, inputs, memory)
+    body.eval(runtime, params, inputs, memory :+ runtime.vectorput(elex))
+  }
+
+  def getSubexprs: Map[AVector, Int] = Map()
+  def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
+}
+

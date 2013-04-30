@@ -680,6 +680,20 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     vecs.copyinvalidate
   }
 
+  def vectorput(src: VectorSym): MemorySym = {
+    var emitstr: String = ""
+    val vv = nextvector(src.size)
+    val rv = nextmemory
+    val j = nextint
+    emit("""
+      double $vv[$size];
+      for(int $j = 0; $j < $size; $j++) $vv[$j] = $x;
+      memory_t* $rv = (memory_t*)$vv;
+      """,
+      "vv" -> vv, "rv" -> rv, "size" -> src.size, "j" -> j, "x" -> src.at(j))
+    rv
+  }
+
   def memoryallocfor(dim: IntSym, ar: Int, body: IntSym => MemorySym): MemorySym = {
     val rv = nextmemory
     val i = nextint
