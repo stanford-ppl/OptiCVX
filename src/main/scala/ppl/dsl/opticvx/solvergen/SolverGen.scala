@@ -9,7 +9,7 @@ trait SolverGen {
   def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): Unit
 
   private var input: InputDesc = null
-  private var variables: Seq[Multi[IRPoly]] = null
+  private var variables: Seq[IRPoly] = null
   private var vidx: Int = 0
   private var prephase: Boolean = true
   private var solveracc: Solver = null
@@ -44,10 +44,10 @@ trait SolverGen {
   implicit def svariableentry2vectorimpl(s: SVariableEntry): AVector = {
     if(prephase) {
       // in prephase, all reads result in zero because the memory isn't defined
-      AVectorCatFor(variables(s.iidx).body.substituteSeq(s.sidx), AVectorOne(input.promote))
+      AVectorCatFor(variables(s.iidx), AVectorOne(input.promote))
     }
     else {
-      AVectorRead(input, s.iidx, s.sidx)
+      AVectorRead(input, s.iidx)
     }
   }
 

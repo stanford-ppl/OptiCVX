@@ -30,26 +30,28 @@ trait DCPOpsSolve extends DCPOpsFunction {
 
   class CvxSSolver(val solver: Solver) {
     def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*)(tolerance: Double): CvxSSolutionDefinite = {
-      if(pp.length != solver.arity) throw new IRValidationException()
-      if(ins.length != solver.input.args.length) throw new IRValidationException()
-      val spp: Seq[Int] = Seq(pp:_*)
-      val srt = new SolverRuntimeDefinite(tolerance)
-      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
-      val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
-      new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, 0.0, tolerance)
+      throw new IRValidationException()
+      // if(pp.length != solver.arity) throw new IRValidationException()
+      // if(ins.length != solver.input.args.length) throw new IRValidationException()
+      // val spp: Seq[Int] = Seq(pp:_*)
+      // val srt = new SolverRuntimeDefinite(tolerance)
+      // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
+      // val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
+      // new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, 0.0, tolerance)
     }
     def cgen(): CvxSSolverCGen = {
-      val srt = new SolverRuntimeCGen(solver.arity)
-      srt.setinputs(solver.input.args map ((a: Multi[AlmapShape]) =>
-        InputDescCGen(
-          a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
-          ((b: Seq[IntSym]) => (a.body.domain.eval(b)(srt.intlikei))),
-          ((b: Seq[IntSym]) => (a.body.codomain.eval(b)(srt.intlikei)))
-      )))
-      val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
-      val vv = solver.run(srt, srt.params, srt.inputs, mm)
-      srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).body.eval(srt.params)(srt.intlikei), Seq()))
-      new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).body)
+      throw new IRValidationException()
+      // val srt = new SolverRuntimeCGen(solver.arity)
+      // srt.setinputs(solver.input.args map ((a: Multi[AlmapShape]) =>
+      //   InputDescCGen(
+      //     a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
+      //     ((b: Seq[IntSym]) => (a.body.domain.eval(b)(srt.intlikei))),
+      //     ((b: Seq[IntSym]) => (a.body.codomain.eval(b)(srt.intlikei)))
+      // )))
+      // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
+      // val vv = solver.run(srt, srt.params, srt.inputs, mm)
+      // srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).body.eval(srt.params)(srt.intlikei), Seq()))
+      // new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).body)
     }
   }
 
@@ -231,10 +233,10 @@ trait DCPOpsSolve extends DCPOpsFunction {
     for(s <- syms) {
       val x = s.boundexpr
       val msfx: Function = s_over.foldLeft(x.fx.expand(tmpfxn.varSize))((a,b) => a.minimize_over_lastarg)
-      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(Multi(Seq(), msfx.varSize)))
+      val sinput = InputDesc(msfx.arity, msfx.input.args, Seq(msfx.varSize))
       val sv = AVectorSum(
         msfx.valueOffset.addMemory(sinput.memory),
-        msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0, Seq())))
+        msfx.valueVarAlmap.addMemory(sinput.memory).mmpy(AVectorRead(sinput, 0)))
       s.rset(sv)
     }
 

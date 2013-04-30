@@ -1,1 +1,1 @@
-name := "OptiCVX"
+name := "opticvx"

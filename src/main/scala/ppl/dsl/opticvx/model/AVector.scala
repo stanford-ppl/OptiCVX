@@ -781,25 +781,20 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
   override def toString: String = "mpyinputT(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
 }
 
-case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
+case class AVectorRead(val input: InputDesc, val iidx: Int) extends AVector {
   val arity: Int = input.arity
-  val size: IRPoly = input.memory(iidx).body.substituteSeq(sidx)
-  
-  if(sidx.length != input.memory(iidx).dims.length) throw new IRValidationException()
-  for(s <- sidx) {
-    if(s.arity != arity) throw new IRValidationException()
-  }
+  val size: IRPoly = input.memory(iidx)
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorRead(input.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
+  def arityOp(op: ArityOp): AVector = AVectorRead(input.arityOp(op), iidx)
   def inputOp(op: InputOp): AVector = {
     if(op.ms.length != input.memory.length) throw new IRValidationException()
     for(i <- 0 until input.memory.length) {
       if(op.ms(i).arity != input.memory(i).arity) throw new IRValidationException()
     }
-    op.ms(iidx).body.substituteSeq(sidx)
-  }  
+    op.ms(iidx)
+  }
 
   def eval[I, M, N, V, W](
     runtime: SolverRuntime[I, M, N, V, W], 
@@ -807,7 +802,8 @@ case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
     inputs: Seq[N],
     memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
   {
-    runtime.vectorget(memory(iidx), input.memory(iidx).body.substituteSeq(sidx).eval(params)(runtime.intlikei), sidx map (s => s.eval(params)(runtime.intlikei)))
+    throw new IRValidationException()
+    //runtime.vectorget(memory(iidx), input.memory(iidx).body.substituteSeq(sidx).eval(params)(runtime.intlikei), sidx map (s => s.eval(params)(runtime.intlikei)))
   }
 
   // def translate[V <: HasInput[V]](implicit e: AVectorLike[V]): V = {
@@ -823,7 +819,7 @@ case class AVectorRead(val input: InputDesc, val iidx: Int, val sidx: Seq[IRPoly
   // def getSubexprs: Map[AVector, Int] = Map()
   // def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
 
-  override def toString: String = "read(@" + iidx.toString + "[" + sidx.toString + "])"
+  override def toString: String = "read(@" + iidx.toString + ")"
 }
 
 case class AVectorDot(val arg1: AVector, val arg2: AVector) extends AVector {
@@ -1276,6 +1272,32 @@ case class AVectorTolerance(val input: InputDesc) extends AVector {
 
   // def getSubexprs: Map[AVector, Int] = Map()
   // def replaceSubexpr(oldx: AVector, newx: AVector): AVector = this
+}
+
+case class AVectorConverge(val arg: AVector, val body: AVector) extends AVector {
+  val arity: Int = arg.arity
+  val input: InputDesc = arg.input
+  val size: IRPoly = arg.size
+
+  if(body.input != arg.input.pushMemory(arg.size)) throw new IRValidationException()
+  if(body.size != arg.size + IRPoly.const(1, arity)) throw new IRValidationException()
+
+  def arityOp(op: ArityOp): AVector = AVectorConverge(arg.arityOp(op), body.arityOp(op))
+  def inputOp(op: InputOp): AVector = AVectorConverge(arg.inputOp(op), body.inputOp(op.pushMemoryLeft(arg.size)))
+
+  def is0: Boolean = body.is0
+  def isPure: Boolean = arg.isPure && body.isPure
+
+  def eval[I, M, N, V, W](
+    runtime: SolverRuntime[I, M, N, V, W], 
+    params: Seq[I], 
+    inputs: Seq[N],
+    memory: Seq[W]): V = evalcheck(runtime, params, inputs, memory)
+  {
+    throw new IRValidationException()
+  }
+
+  def simplify: AVector = AVectorConverge(arg.simplify, body.simplify)
 }
 
 // case class AVectorLet(val lex: AVector, val body: AVector) extends AVector {

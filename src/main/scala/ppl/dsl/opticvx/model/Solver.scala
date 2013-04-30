@@ -83,9 +83,9 @@ case class SolverWrite(val src: AVector, val iidx: Int, sidx: Seq[IRPoly]) exten
   val arity: Int = src.arity
   val input: InputDesc = src.input
 
-  if(src.size != input.memory(iidx).body.substituteSeq(sidx)) {
+  if(src.size != input.memory(iidx)) {
     println(src.size)
-    println(input.memory(iidx).body.substituteSeq(sidx))
+    println(input.memory(iidx))
     throw new IRValidationException()
   }
 
