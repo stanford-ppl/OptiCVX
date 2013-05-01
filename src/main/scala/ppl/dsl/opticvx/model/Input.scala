@@ -77,5 +77,24 @@ trait HasInput[T] extends HasArity[T] {
     inputOp(op)
   }
 
+  def memoryInvariantAt(idx: Int): Boolean = {
+    if((idx < 0)||(idx >= input.memory.length)) throw new IRValidationException()
+    val op = InputOp(
+      input,
+      for(i <- 0 until input.args.length) yield input.inputparam(i),
+      for(i <- 0 until input.memory.length) yield if(i != idx) input.memoryparam(i) else AVectorZero(input, input.memory(i)))
+    val vop = this.inputOp(op)
+    vop == this
+  }
+
+  def popMemory: T = {
+    val newinput = InputDesc(arity, input.args, input.memory.dropRight(1))
+    val op = InputOp(
+      newinput,
+      for(i <- 0 until input.args.length) yield newinput.inputparam(i),
+      for(i <- 0 until input.memory.length) yield if(i != input.memory.length - 1) newinput.memoryparam(i) else AVectorZero(newinput, input.memory(i)))
+    this.inputOp(op)
+  }
+
   def isMemoryless: Boolean = (input.memory == Seq())
 }

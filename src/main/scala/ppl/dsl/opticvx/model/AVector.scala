@@ -11,10 +11,24 @@ object AVector {
   def const(c: Double, input: InputDesc): AVector = {
     AVectorScaleConstant(AVectorOne(input), c)
   }
+
+  val arityOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, ArityOp], AVector]()
+  val inputOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, InputOp], AVector]()
 }
 
 trait AVector extends HasInput[AVector] {
+  self: ScalaObject with Product =>
+
   val size: IRPoly
+
+  lazy val cachedHashCode: Int = scala.runtime.ScalaRunTime._hashCode(this)
+  override def hashCode(): Int = cachedHashCode
+
+  //this is a fast, incorrect equals function
+  override def equals(x: Any): Boolean = (x match {
+      case u: AVector => (cachedHashCode == u.cachedHashCode)
+      case _ => false
+    })
 
   def arityVerify() {
     if(size.arity != arity) throw new IRValidationException()
@@ -33,18 +47,42 @@ trait AVector extends HasInput[AVector] {
   def isPure: Boolean
   def simplify: AVector
 
-  override def promote: AVector = AVectorPromoted(this)
+  final def arityOp(op: ArityOp): AVector = {
+    AVector.arityOpMemoMap.getOrElseUpdate((this, op), arityOpSub(op))
+  }
+  final def inputOp(op: InputOp): AVector = {
+    AVector.inputOpMemoMap.getOrElseUpdate((this, op), inputOpSub(op))
+  }
+
+  def arityOpSub(op: ArityOp): AVector
+  def inputOpSub(op: InputOp): AVector
+
+  private lazy val invariantAtSeq: Seq[Boolean] = 
+    for(i <- 0 until arity) yield invariantAtSub(i)
+  override def invariantAt(idx: Int): Boolean = invariantAtSeq(idx)
+  private lazy val memoryInvariantAtSeq: Seq[Boolean] = 
+    for(i <- 0 until input.memory.size) yield memoryInvariantAtSub(i)
+  override def memoryInvariantAt(idx: Int): Boolean = memoryInvariantAtSeq(idx)
+
+  def invariantAtSub(idx: Int): Boolean
+  def memoryInvariantAtSub(idx: Int): Boolean
+
+  //override def promote: AVector = AVectorPromoted(this)
+  //override def pushMemory(memsize: IRPoly): AVector = AVectorMemoryPushed(this, memsize)
 }
 
 case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
   val arity: Int = size.arity
   arityVerify()
-  def arityOp(op: ArityOp): AVector = AVectorZero(input.arityOp(op), size.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorZero(op.input, size)
+  def arityOpSub(op: ArityOp): AVector = AVectorZero(input.arityOp(op), size.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorZero(op.input, size)
   def is0: Boolean = true
   def isPure: Boolean = true
 
   def simplify: AVector = this
+
+  def invariantAtSub(idx: Int): Boolean = size.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = true
 
   override def toString: String = "zero(" + size.toString + ")"
 }
@@ -56,11 +94,11 @@ case class AVectorConst(val input: InputDesc, val data: Seq[Double]) extends AVe
   val arity: Int = input.arity
   val size: IRPoly = IRPoly.const(data.size, arity)
   arityVerify()
-  def arityOp(op: ArityOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
     AVectorConst(input.arityOp(op), data)
   }
-  def inputOp(op: InputOp): AVector = AVectorConst(op.input, data)
+  def inputOpSub(op: InputOp): AVector = AVectorConst(op.input, data)
   def is0: Boolean = false
   def isPure: Boolean = true
 
@@ -72,6 +110,9 @@ case class AVectorConst(val input: InputDesc, val data: Seq[Double]) extends AVe
       this
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = true
+  def memoryInvariantAtSub(idx: Int): Boolean = true
 
   override def toString: String = "const(...)"
 }
@@ -92,11 +133,11 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
     AVectorSum(args map (a => a.arityOp(op)))
   }
-  def inputOp(op: InputOp): AVector = AVectorSum(args map (a => a.inputOp(op)))
+  def inputOpSub(op: InputOp): AVector = AVectorSum(args map (a => a.inputOp(op)))
 
   def is0: Boolean = args forall (a => a.is0)
   def isPure: Boolean = args forall (a => a.isPure)
@@ -125,6 +166,13 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = {
+    args forall (a => a.invariantAt(idx))
+  }
+  def memoryInvariantAtSub(idx: Int): Boolean = {
+    args forall (a => a.memoryInvariantAt(idx))
+  }
+
   override def toString: String = "sum(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
@@ -135,8 +183,8 @@ case class AVectorNeg(val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorNeg(arg.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorNeg(arg.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorNeg(arg.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorNeg(arg.inputOp(op))
 
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
@@ -154,6 +202,9 @@ case class AVectorNeg(val arg: AVector) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "neg(" + arg.toString + ")"
 }
 
@@ -164,8 +215,8 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorScaleConstant(arg.arityOp(op), scale)
-  def inputOp(op: InputOp): AVector = AVectorScaleConstant(arg.inputOp(op), scale)
+  def arityOpSub(op: ArityOp): AVector = AVectorScaleConstant(arg.arityOp(op), scale)
+  def inputOpSub(op: InputOp): AVector = AVectorScaleConstant(arg.inputOp(op), scale)
 
   def is0: Boolean = arg.is0 || (scale == 0.0)
   def isPure: Boolean = arg.isPure
@@ -192,6 +243,9 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "scale(" + arg.toString + ", " + scale.toString + ")"
 }
 
@@ -210,8 +264,8 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorCat(args map (a => a.arityOp(op)))
-  def inputOp(op: InputOp): AVector = AVectorCat(args map (a => a.inputOp(op)))
+  def arityOpSub(op: ArityOp): AVector = AVectorCat(args map (a => a.arityOp(op)))
+  def inputOpSub(op: InputOp): AVector = AVectorCat(args map (a => a.inputOp(op)))
 
   def is0: Boolean = args forall (a => a.is0)
   def isPure: Boolean = args forall (a => a.isPure)
@@ -259,6 +313,13 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = {
+    args forall (a => a.invariantAt(idx))
+  }
+  def memoryInvariantAtSub(idx: Int): Boolean = {
+    args forall (a => a.memoryInvariantAt(idx))
+  }
+
   override def toString: String = "cat(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
 }
 
@@ -271,11 +332,11 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
     AVectorCatFor(len.arityOp(op), arg.arityOp(op.leftPromote))
   }
-  def inputOp(op: InputOp): AVector = AVectorCatFor(len, arg.inputOp(op.promote))
+  def inputOpSub(op: InputOp): AVector = AVectorCatFor(len, arg.inputOp(op.promote))
 
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure  
@@ -293,6 +354,9 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && len.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "catfor(" + len.toString + ": " + arg.toString + ")"
 }
 
@@ -305,11 +369,11 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = {
     if(op.xs.length != arity) throw new IRValidationException()
     AVectorSlice(arg.arityOp(op), at.arityOp(op), size.arityOp(op))
   }
-  def inputOp(op: InputOp): AVector = AVectorSlice(arg.inputOp(op), at, size)
+  def inputOpSub(op: InputOp): AVector = AVectorSlice(arg.inputOp(op), at, size)
 
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
@@ -330,6 +394,9 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && at.invariantAt(idx) && size.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "slice(" + arg.toString + ", " + at.toString + ", " + size.toString + ")"
 }
 
@@ -342,8 +409,8 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorSumFor(len.arityOp(op), arg.arityOp(op.leftPromote))
-  def inputOp(op: InputOp): AVector = AVectorSumFor(len, arg.inputOp(op.promote))
+  def arityOpSub(op: ArityOp): AVector = AVectorSumFor(len.arityOp(op), arg.arityOp(op.leftPromote))
+  def inputOpSub(op: InputOp): AVector = AVectorSumFor(len, arg.inputOp(op.promote))
   
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
@@ -361,6 +428,9 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && len.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "sumfor(" + len.toString + ": " + arg.toString + ")"
 }
 
@@ -373,8 +443,8 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorMpyInput(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
-  def inputOp(op: InputOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = AVectorMpyInput(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
+  def inputOpSub(op: InputOp): AVector = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
       if(op.xs(i).body.arity != input.args(i).body.arity) throw new IRValidationException()
@@ -395,6 +465,9 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && (sidx forall (a => a.invariantAt(idx)))
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "mpyinput(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
 }
 
@@ -407,8 +480,8 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorMpyInputT(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
-  def inputOp(op: InputOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = AVectorMpyInputT(arg.arityOp(op), iidx, sidx map (s => s.arityOp(op)))
+  def inputOpSub(op: InputOp): AVector = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
       if(op.xs(i).body.arity != input.args(i).arity) throw new IRValidationException()
@@ -429,6 +502,9 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && (sidx forall (a => a.invariantAt(idx)))
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
+
   override def toString: String = "mpyinputT(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
 }
 
@@ -438,8 +514,8 @@ case class AVectorRead(val input: InputDesc, val iidx: Int) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorRead(input.arityOp(op), iidx)
-  def inputOp(op: InputOp): AVector = {
+  def arityOpSub(op: ArityOp): AVector = AVectorRead(input.arityOp(op), iidx)
+  def inputOpSub(op: InputOp): AVector = {
     if(op.ms.length != input.memory.length) throw new IRValidationException()
     for(i <- 0 until input.memory.length) {
       if(op.ms(i).arity != input.memory(i).arity) throw new IRValidationException()
@@ -451,6 +527,9 @@ case class AVectorRead(val input: InputDesc, val iidx: Int) extends AVector {
   def isPure: Boolean = false
 
   def simplify: AVector = this
+
+  def invariantAtSub(idx: Int): Boolean = input.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = (idx != iidx)
 
   override def toString: String = "read(@" + iidx.toString + ")"
 }
@@ -465,8 +544,8 @@ case class AVectorDot(val arg1: AVector, val arg2: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorDot(arg1.arityOp(op), arg2.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorDot(arg1.inputOp(op), arg2.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorDot(arg1.arityOp(op), arg2.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorDot(arg1.inputOp(op), arg2.inputOp(op))
 
   def is0: Boolean = arg1.is0 || arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.isPure
@@ -482,6 +561,9 @@ case class AVectorDot(val arg1: AVector, val arg2: AVector) extends AVector {
     }
   }
 
+  def invariantAtSub(idx: Int): Boolean = arg1.invariantAt(idx) && arg2.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg1.memoryInvariantAt(idx) && arg2.memoryInvariantAt(idx)
+
   override def toString: String = "dot(" + arg1.toString + ", " + arg2.toString + ")"
 }
 
@@ -495,8 +577,8 @@ case class AVectorMpy(val arg: AVector, val scale: AVector) extends AVector {
   if(scale.size != IRPoly.const(1, arity)) throw new IRValidationException()
   if(arg.input != scale.input) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorMpy(arg.arityOp(op), scale.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorMpy(arg.inputOp(op), scale.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorMpy(arg.arityOp(op), scale.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorMpy(arg.inputOp(op), scale.inputOp(op))
 
   def is0: Boolean = arg.is0 || scale.is0
   def isPure: Boolean = arg.isPure && scale.isPure
@@ -511,6 +593,9 @@ case class AVectorMpy(val arg: AVector, val scale: AVector) extends AVector {
       AVectorMpy(sa, ss)
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && scale.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx) && scale.memoryInvariantAt(idx)
 }
 
 case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
@@ -524,8 +609,8 @@ case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
   if(arg.input != scale.input) throw new IRValidationException()
   if(scale.is0) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorDiv(arg.arityOp(op), scale.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorDiv(arg.inputOp(op), scale.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorDiv(arg.arityOp(op), scale.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorDiv(arg.inputOp(op), scale.inputOp(op))
 
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure && scale.isPure
@@ -540,6 +625,9 @@ case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
       AVectorDiv(sa, ss)
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && scale.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx) && scale.memoryInvariantAt(idx)
 }
 
 
@@ -552,8 +640,8 @@ case class AVectorSqrt(val arg: AVector) extends AVector {
 
   if(arg.size != IRPoly.const(1, arity)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorSqrt(arg.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorSqrt(arg.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorSqrt(arg.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorSqrt(arg.inputOp(op))
 
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
@@ -567,6 +655,9 @@ case class AVectorSqrt(val arg: AVector) extends AVector {
       AVectorSqrt(sa)
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 }
 
 case class AVectorNorm2(val arg: AVector) extends AVector {
@@ -576,8 +667,8 @@ case class AVectorNorm2(val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorNorm2(arg.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorNorm2(arg.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorNorm2(arg.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorNorm2(arg.inputOp(op))
 
   def is0: Boolean = false //arg.is0
   def isPure: Boolean = arg.isPure
@@ -586,6 +677,9 @@ case class AVectorNorm2(val arg: AVector) extends AVector {
     val sa = arg.simplify
     AVectorNorm2(sa)
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 }
 
 //infinity norm
@@ -596,8 +690,8 @@ case class AVectorNormInf(val arg: AVector) extends AVector {
 
   arityVerify()
 
-  def arityOp(op: ArityOp): AVector = AVectorNormInf(arg.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorNormInf(arg.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorNormInf(arg.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorNormInf(arg.inputOp(op))
 
   def is0: Boolean = false //arg.is0
   def isPure: Boolean = arg.isPure
@@ -606,6 +700,9 @@ case class AVectorNormInf(val arg: AVector) extends AVector {
     val sa = arg.simplify
     AVectorNormInf(sa)
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 }
 
 case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
@@ -618,8 +715,8 @@ case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
   if(arg1.input != arg2.input) throw new IRValidationException()
   if(arg1.size != arg2.size) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorMax(arg1.arityOp(op), arg2.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorMax(arg1.inputOp(op), arg2.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorMax(arg1.arityOp(op), arg2.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorMax(arg1.inputOp(op), arg2.inputOp(op))
 
   def is0: Boolean = arg1.is0 && arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.is0
@@ -634,6 +731,9 @@ case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
       AVectorMax(sa1, sa2)
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg1.invariantAt(idx) && arg2.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg1.memoryInvariantAt(idx) && arg2.memoryInvariantAt(idx)
 }
 
 case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
@@ -646,8 +746,8 @@ case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
   if(arg1.input != arg2.input) throw new IRValidationException()
   if(arg1.size != arg2.size) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorMin(arg1.arityOp(op), arg2.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorMin(arg1.inputOp(op), arg2.inputOp(op))
+  def arityOpSub(op: ArityOp): AVector = AVectorMin(arg1.arityOp(op), arg2.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorMin(arg1.inputOp(op), arg2.inputOp(op))
 
   def is0: Boolean = arg1.is0 && arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.is0
@@ -662,19 +762,25 @@ case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
       AVectorMin(sa1, sa2)
     }
   }
+
+  def invariantAtSub(idx: Int): Boolean = arg1.invariantAt(idx) && arg2.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg1.memoryInvariantAt(idx) && arg2.memoryInvariantAt(idx)
 }
 
 case class AVectorTolerance(val input: InputDesc) extends AVector {
   val arity: Int = input.arity
   val size: IRPoly = IRPoly.const(1, arity)
 
-  def arityOp(op: ArityOp): AVector = AVectorTolerance(input.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorTolerance(op.input)
+  def arityOpSub(op: ArityOp): AVector = AVectorTolerance(input.arityOp(op))
+  def inputOpSub(op: InputOp): AVector = AVectorTolerance(op.input)
 
   def is0: Boolean = false
   def isPure: Boolean = false
 
   def simplify: AVector = this
+
+  def invariantAtSub(idx: Int): Boolean = true
+  def memoryInvariantAtSub(idx: Int): Boolean = true
 }
 
 case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVector, val itermax: Int) extends AVector {
@@ -687,12 +793,10 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
   if(cond.input != arg.input.pushMemory(arg.size))
   if(cond.size != IRPoly.const(1, arity)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = {
-    throw new IRValidationException()
+  def arityOpSub(op: ArityOp): AVector = {
     AVectorConverge(arg.arityOp(op), cond.arityOp(op), body.arityOp(op), itermax)
   }
-  def inputOp(op: InputOp): AVector = {
-    throw new IRValidationException()
+  def inputOpSub(op: InputOp): AVector = {
     AVectorConverge(arg.inputOp(op), cond.inputOp(op.pushMemoryLeft(arg.size)), body.inputOp(op.pushMemoryLeft(arg.size)), itermax)
   }
 
@@ -700,21 +804,44 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
   def isPure: Boolean = arg.isPure && body.isPure && cond.isPure
 
   def simplify: AVector = AVectorConverge(arg.simplify, cond.simplify, body.simplify, itermax)
+
+  def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && cond.invariantAt(idx) && body.invariantAt(idx)
+  def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx) && cond.memoryInvariantAt(idx) && body.memoryInvariantAt(idx)
 }
 
-case class AVectorPromoted(val arg: AVector) extends AVector {
-  val arity: Int = arg.arity + 1
-  val input: InputDesc = arg.input.promote
-  val size: IRPoly = arg.size.promote
+// case class AVectorPromoted(val arg: AVector) extends AVector {
+//   val arity: Int = arg.arity + 1
+//   val input: InputDesc = arg.input.promote
+//   val size: IRPoly = arg.size.promote
 
-  def arityOp(op: ArityOp): AVector = {
-    val dop: ArityOp = ArityOp(op.arity - 1, op.xs.dropRight(1))
-    AVectorPromoted(arg.arityOp(dop))
-  }
-  def inputOp(op: InputOp): AVector = AVectorPromoted(arg.inputOp(op.demote))
+//   def arityOpSub(op: ArityOp): AVector = {
+//     val dop: ArityOp = ArityOp(op.arity, op.xs.dropRight(1))
+//     arg.arityOp(dop)
+//   }
+//   def inputOpSub(op: InputOp): AVector = AVectorPromoted(arg.inputOp(op.demote))
 
-  def is0: Boolean = arg.is0
-  def isPure: Boolean = arg.isPure
+//   def is0: Boolean = arg.is0
+//   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = AVectorPromoted(arg.simplify)
-}
+//   def simplify: AVector = AVectorPromoted(arg.simplify)
+// }
+
+// case class AVectorMemoryPushed(val arg: AVector, val memsize: IRPoly) extends AVector {
+//   val arity: Int = arg.arity
+//   val input: InputDesc = arg.input.pushMemory(memsize)
+//   val size: IRPoly = arg.size
+
+//   if(memsize.arity != arity) throw new IRValidationException()
+
+//   def arityOpSub(op: ArityOp): AVector = AVectorMemoryPushed(arg.arityOp(op), memsize.arityOp(op))
+//   def inputOpSub(op: InputOp): AVector = {
+//     val dop: InputOp = InputOp(op.input, op.xs, op.ms.dropRight(1))
+//     arg.inputOp(dop)
+//   }
+
+//   def is0: Boolean = arg.is0
+//   def isPure: Boolean = arg.isPure
+
+//   def simplify: AVector = AVectorMemoryPushed(arg.simplify, memsize)
+// }
+

@@ -13,7 +13,7 @@ object SolverRuntimeDefinite extends SolverRuntime {
 
 class SolverCompiledDefinite(v: AVector) extends SolverCompiled {
   def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): SolverResult = {
-    val evaler = new SolverEvalDefinite(params, inputs, memory, tolerance, null)
+    val evaler = new SolverEvalDefinite(params, inputs, memory, tolerance, null, null)
     val start = System.currentTimeMillis()
     val data = evaler.eval(v)
     val elapsed = System.currentTimeMillis() - start
@@ -21,14 +21,34 @@ class SolverCompiledDefinite(v: AVector) extends SolverCompiled {
   }
 }
 
-class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double, inherit: SolverEvalDefinite) {
+class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double, inherit_promote: SolverEvalDefinite, inherit_push: SolverEvalDefinite) {
   var iterationct: Int = 0
   val memocache = new scala.collection.mutable.HashMap[AVector, Seq[Double]]()
 
   def memolookup(v: AVector): Seq[Double] = {
     val rv = memocache.getOrElse(v, null)
-    if((rv == null)&&(inherit!=null)) {
-      inherit.memolookup(v)
+    if(rv == null) {
+      if(inherit_promote != null) {
+        if(v.invariantAt(v.arity - 1)) {
+          val dv = v.demote
+          inherit_promote.eval(dv)
+        }
+        else {
+          null
+        }
+      }
+      else if(inherit_push != null) {
+        if(v.memoryInvariantAt(v.input.memory.length - 1)) {
+          val dv = v.popMemory
+          inherit_push.eval(dv)
+        }
+        else {
+          null
+        }
+      }
+      else {
+        null
+      }
     }
     else {
       rv
@@ -37,9 +57,11 @@ class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memor
 
   def eval(v: AVector): Seq[Double] = {
     val memo = memolookup(v)
-    if(memo != null) return memo
+    if(memo != null) {
+      return memo
+    }
 
-    v match {
+    val rv = v match {
       case AVectorZero(input, size) =>
         for(i <- 0 until size.eval(params)(IntLikeInt)) yield 0.0
       case AVectorConst(input, data) =>
@@ -59,8 +81,8 @@ class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memor
       case AVectorCatFor(len, arg) => {
         var rv: Seq[Double] = Seq()
         for(j <- 0 until len.eval(params)(IntLikeInt)) {
-          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this)
-          rv ++ ev.eval(arg)
+          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this, null)
+          rv = rv ++ ev.eval(arg)
         }
         rv
       }
@@ -71,7 +93,7 @@ class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memor
       case AVectorSumFor(len, arg) => {
         var rv: Seq[Double] = for(i <- 0 until v.size.eval(params)(IntLikeInt)) yield 0.0
         for(j <- 0 until len.eval(params)(IntLikeInt)) {
-          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this)
+          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this, null)
           val evv = ev.eval(arg)
           rv = for(i <- 0 until rv.length) yield rv(i) + evv(i)
         }
@@ -87,9 +109,88 @@ class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memor
         val m = inputs(iidx).apply(sidx map (s => s.eval(params)(IntLikeInt)))
         m.mmpyT(vs)
       }
+      case AVectorRead(input, iidx) => {
+        memory(iidx)
+      }
+      case AVectorDot(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        var acc: Double = 0.0
+        for(i <- 0 until av1.length) {
+          acc += av1(i) * av2(i)
+        }
+        Seq(acc)
+      }
+      case AVectorMpy(arg, scale) => {
+        val ava = eval(arg)
+        val avs = eval(scale)
+        for(i <- 0 until ava.length) yield ava(i) * avs(0)
+      }
+      case AVectorDiv(arg, scale) => {
+        val ava = eval(arg)
+        val avs = eval(scale)
+        for(i <- 0 until ava.length) yield ava(i) / avs(0)
+      }
+      case AVectorSqrt(arg) => {
+        val av = eval(arg)
+        Seq(scala.math.sqrt(av(0)))
+      }
+      case AVectorNorm2(arg) => {
+        val av = eval(arg)
+        var acc: Double = 0.0
+        for(i <- 0 until av.length) {
+          acc += av(i) * av(i)
+        }
+        Seq(acc)
+      }
+      case AVectorNormInf(arg) => {
+        val av = eval(arg)
+        var acc: Double = 0.0
+        for(i <- 0 until av.length) {
+          acc = scala.math.max(acc, scala.math.abs(av(i)))
+        }
+        Seq(acc)
+      }
+      case AVectorMax(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        for(i <- 0 until av1.length) yield scala.math.max(av1(i), av2(i))
+      }
+      case AVectorMin(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        for(i <- 0 until av1.length) yield scala.math.min(av1(i), av2(i))
+      }
+      case AVectorTolerance(input) => {
+        Seq(tolerance)
+      }
+      case AVectorConverge(arg, cond, body, itermax) => {
+        var state: Seq[Double] = eval(arg)
+        var bc: Seq[Double] = Seq(1.0)
+        var iterct: Int = 0
+        while((bc(0) > 0.0)&&((itermax < 0)||(iterct < itermax))) {
+          val ev = new SolverEvalDefinite(params, inputs, memory :+ state, tolerance, null, this)
+          bc = ev.eval(cond)
+          state = ev.eval(body)
+          if((inherit_promote == null)&&(inherit_push == null)) {
+            println(bc(0))
+          }
+          iterct += 1
+        }
+        state
+      }
       case _ =>
         throw new IRValidationException()
     }
+
+    if(rv.length != v.size.eval(params)(IntLikeInt)) {
+      println(v)
+      println(rv)
+      throw new IRValidationException()
+    }
+    memocache += (v -> rv)
+
+    rv
   }
 }
 
