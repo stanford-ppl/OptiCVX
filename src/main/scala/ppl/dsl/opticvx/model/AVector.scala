@@ -32,6 +32,8 @@ trait AVector extends HasInput[AVector] {
   def is0: Boolean
   def isPure: Boolean
   def simplify: AVector
+
+  override def promote: AVector = AVectorPromoted(this)
 }
 
 case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
@@ -685,11 +687,34 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
   if(cond.input != arg.input.pushMemory(arg.size))
   if(cond.size != IRPoly.const(1, arity)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorConverge(arg.arityOp(op), cond.arityOp(op), body.arityOp(op), itermax)
-  def inputOp(op: InputOp): AVector = AVectorConverge(arg.inputOp(op), cond.inputOp(op.pushMemoryLeft(arg.size)), body.inputOp(op.pushMemoryLeft(arg.size)), itermax)
+  def arityOp(op: ArityOp): AVector = {
+    throw new IRValidationException()
+    AVectorConverge(arg.arityOp(op), cond.arityOp(op), body.arityOp(op), itermax)
+  }
+  def inputOp(op: InputOp): AVector = {
+    throw new IRValidationException()
+    AVectorConverge(arg.inputOp(op), cond.inputOp(op.pushMemoryLeft(arg.size)), body.inputOp(op.pushMemoryLeft(arg.size)), itermax)
+  }
 
   def is0: Boolean = body.is0
   def isPure: Boolean = arg.isPure && body.isPure && cond.isPure
 
   def simplify: AVector = AVectorConverge(arg.simplify, cond.simplify, body.simplify, itermax)
+}
+
+case class AVectorPromoted(val arg: AVector) extends AVector {
+  val arity: Int = arg.arity + 1
+  val input: InputDesc = arg.input.promote
+  val size: IRPoly = arg.size.promote
+
+  def arityOp(op: ArityOp): AVector = {
+    val dop: ArityOp = ArityOp(op.arity - 1, op.xs.dropRight(1))
+    AVectorPromoted(arg.arityOp(dop))
+  }
+  def inputOp(op: InputOp): AVector = AVectorPromoted(arg.inputOp(op.demote))
+
+  def is0: Boolean = arg.is0
+  def isPure: Boolean = arg.isPure
+
+  def simplify: AVector = AVectorPromoted(arg.simplify)
 }

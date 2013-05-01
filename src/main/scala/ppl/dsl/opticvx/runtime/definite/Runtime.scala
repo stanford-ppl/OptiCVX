@@ -13,7 +13,83 @@ object SolverRuntimeDefinite extends SolverRuntime {
 
 class SolverCompiledDefinite(v: AVector) extends SolverCompiled {
   def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): SolverResult = {
-    throw new IRValidationException()
+    val evaler = new SolverEvalDefinite(params, inputs, memory, tolerance, null)
+    val start = System.currentTimeMillis()
+    val data = evaler.eval(v)
+    val elapsed = System.currentTimeMillis() - start
+    SolverResult(data, evaler.iterationct, elapsed * 0.001)
+  }
+}
+
+class SolverEvalDefinite(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double, inherit: SolverEvalDefinite) {
+  var iterationct: Int = 0
+  val memocache = new scala.collection.mutable.HashMap[AVector, Seq[Double]]()
+
+  def memolookup(v: AVector): Seq[Double] = {
+    val rv = memocache.getOrElse(v, null)
+    if((rv == null)&&(inherit!=null)) {
+      inherit.memolookup(v)
+    }
+    else {
+      rv
+    }
+  }
+
+  def eval(v: AVector): Seq[Double] = {
+    val memo = memolookup(v)
+    if(memo != null) return memo
+
+    v match {
+      case AVectorZero(input, size) =>
+        for(i <- 0 until size.eval(params)(IntLikeInt)) yield 0.0
+      case AVectorConst(input, data) =>
+        data
+      case AVectorSum(args) => {
+        val avs = args map (a => eval(a))
+        for(i <- 0 until avs(0).length) yield avs.foldLeft(0.0)((a,x) => a + x(i))
+      }
+      case AVectorNeg(arg) => 
+        eval(arg) map ((a) => -a)
+      case AVectorScaleConstant(arg, scale) =>
+        eval(arg) map ((a) => a * scale)
+      case AVectorCat(args) => {
+        val avs = args map (a => eval(a))
+        avs.foldLeft(Seq[Double]())((a,b) => a ++ b)
+      }
+      case AVectorCatFor(len, arg) => {
+        var rv: Seq[Double] = Seq()
+        for(j <- 0 until len.eval(params)(IntLikeInt)) {
+          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this)
+          rv ++ ev.eval(arg)
+        }
+        rv
+      }
+      case AVectorSlice(arg, at, size) => {
+        val vs = eval(arg)
+        vs.slice(at.eval(params)(IntLikeInt), (at+size).eval(params)(IntLikeInt))
+      }
+      case AVectorSumFor(len, arg) => {
+        var rv: Seq[Double] = for(i <- 0 until v.size.eval(params)(IntLikeInt)) yield 0.0
+        for(j <- 0 until len.eval(params)(IntLikeInt)) {
+          val ev = new SolverEvalDefinite(params :+ j, inputs, memory, tolerance, this)
+          val evv = ev.eval(arg)
+          rv = for(i <- 0 until rv.length) yield rv(i) + evv(i)
+        }
+        rv
+      }
+      case AVectorMpyInput(arg, iidx, sidx) => {
+        val vs = eval(arg)
+        val m = inputs(iidx).apply(sidx map (s => s.eval(params)(IntLikeInt)))
+        m.mmpy(vs)
+      }
+      case AVectorMpyInputT(arg, iidx, sidx) => {
+        val vs = eval(arg)
+        val m = inputs(iidx).apply(sidx map (s => s.eval(params)(IntLikeInt)))
+        m.mmpyT(vs)
+      }
+      case _ =>
+        throw new IRValidationException()
+    }
   }
 }
 

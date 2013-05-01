@@ -158,8 +158,6 @@ trait SolverGenUtil {
 
       CGConverge.run
 
-      println("hello, world!")
-
       CGConverge.x
     }
 

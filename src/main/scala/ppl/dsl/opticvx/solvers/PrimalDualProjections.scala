@@ -33,36 +33,26 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
       val y = state(zeros(A.codomain))
 
       def body: AVector = {
-        println("at 5")
         val Aproj = new CGProject(pr(A), pr(M), pr(b))
         Aproj.tol = 1e-6
         Aproj.itermax = 10
         x := Aproj.proj(x - pr(c), s + y, x)
-        println("at 6")
+        val prA = pr(A)
         val Ax = pr(A) * x
         val s_t = pr(b) - Ax
-        println("at 7")
         val s_t_ovp = s_t * 1.8 + s * (1.0 - 1.8)
         s := K.project(s_t_ovp - y)
         y := y + s - s_t_ovp
-        println("at 8")
         val ATy = pr(A.T) * y
         val cond1 = norm_inf(Ax + s - pr(b))
-        println("at 9")
         val cond2 = norm_inf(ATy + pr(c))
-        val cond3 = norm_inf(dot(c, x) + dot(b, y))
-        
-        println("at 4")
+        val cond3 = norm_inf(dot(pr(c), x) + dot(pr(b), y))
 
         norm_inf(cat(cond1, cond2, cond3)) - pr(tol)
       }
     }
 
-    println("at 2")
-
     PDPConverge.run
-
-    println("at 3")
 
     PDPConverge.x
   }
