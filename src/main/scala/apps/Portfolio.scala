@@ -44,13 +44,6 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     /* generate a solver */
     println("generating the solver...")
     val solver = tictoc(prob.gen(PrimalDualProjections))
-    /* generate code for the solver in C */
-    println("generating C solver code...")
-    val ccodeobj = tictoc(solver.cgen())
-    /* compile the code using gcc */
-    println("compiling C solver...")
-    val csolver = tictoc(ccodeobj.compile())
-    /* run the generated C code */
     println("generating problem data...")
     val rand = new scala.util.Random(42)
     val m_in: Int = 10
@@ -61,12 +54,16 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val mu_in: Seq[Double] = for(i <- 0 until n_in) yield scala.math.exp(rand.nextGaussian())
     val W_in: Double = 1.0 //n_in.toDouble
     val tol: Double = 1e-4
-    println("solving the problem in C...")
-    val csoln = tictoc(csolver.solve(m_in, n_in)(F_in, definitematrixdiag(D_in), mu_in, W_in)(tol))
+    /* generate code for the solver */
+    println("compiling solver code...")
+    val codeobj = tictoc(solver.compile(SolverRuntimeDefinite))
+    /* run the generated code */
+    println("solving the problem...")
+    val soln = tictoc(codeobj.solve(m_in, n_in)(F_in, definitematrixdiag(D_in), mu_in, W_in)(tol))
     /* print out the results */
-    println("converged in " + csoln.num_iterations + " iterations")
-    println("converged in " + csoln.timer + " seconds")
-    println("x = " + csoln.resolve(x).map(d => "%+1.3f" format d).mkString("[", ", ", "]"))
+    println("converged in " + soln.num_iterations + " iterations")
+    println("converged in " + soln.timer + " seconds")
+    println("x = " + soln.resolve(x).map(d => "%+1.3f" format d).mkString("[", ", ", "]"))
     
   }
 }

@@ -675,19 +675,21 @@ case class AVectorTolerance(val input: InputDesc) extends AVector {
   def simplify: AVector = this
 }
 
-case class AVectorConverge(val arg: AVector, val body: AVector) extends AVector {
+case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVector, val itermax: Int) extends AVector {
   val arity: Int = arg.arity
   val input: InputDesc = arg.input
-  val size: IRPoly = arg.size
+  val size: IRPoly = body.size
 
   if(body.input != arg.input.pushMemory(arg.size)) throw new IRValidationException()
-  if(body.size != arg.size + IRPoly.const(1, arity)) throw new IRValidationException()
+  if(body.size != arg.size) throw new IRValidationException()
+  if(cond.input != arg.input.pushMemory(arg.size))
+  if(cond.size != IRPoly.const(1, arity)) throw new IRValidationException()
 
-  def arityOp(op: ArityOp): AVector = AVectorConverge(arg.arityOp(op), body.arityOp(op))
-  def inputOp(op: InputOp): AVector = AVectorConverge(arg.inputOp(op), body.inputOp(op.pushMemoryLeft(arg.size)))
+  def arityOp(op: ArityOp): AVector = AVectorConverge(arg.arityOp(op), cond.arityOp(op), body.arityOp(op), itermax)
+  def inputOp(op: InputOp): AVector = AVectorConverge(arg.inputOp(op), cond.inputOp(op.pushMemoryLeft(arg.size)), body.inputOp(op.pushMemoryLeft(arg.size)), itermax)
 
   def is0: Boolean = body.is0
-  def isPure: Boolean = arg.isPure && body.isPure
+  def isPure: Boolean = arg.isPure && body.isPure && cond.isPure
 
-  def simplify: AVector = AVectorConverge(arg.simplify, body.simplify)
+  def simplify: AVector = AVectorConverge(arg.simplify, cond.simplify, body.simplify, itermax)
 }

@@ -7,6 +7,14 @@ import scala.collection.immutable.Set
 
 import ppl.dsl.opticvx.solvers._
 
+
+object SolverRuntimeCGen extends SolverRuntime {
+  def compile(v: AVector): SolverCompiled = {
+    throw new IRValidationException()
+  }
+}
+
+/*
 trait Sym {
   def name: String
 }
@@ -759,3 +767,4 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
   }
   
 }
+*/

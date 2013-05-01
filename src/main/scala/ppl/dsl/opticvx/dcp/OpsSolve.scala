@@ -14,47 +14,68 @@ import java.lang.Runtime
 
 trait DCPOpsSolve extends DCPOpsFunction {
 
-  val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
+  //val PrimalDualOperatorSplitting = ppl.dsl.opticvx.solvers.PrimalDualOperatorSplitting
   val PrimalDualProjections = ppl.dsl.opticvx.solvers.PrimalDualProjections
-  val PrimalDualHomogeneous = ppl.dsl.opticvx.solvers.PrimalDualHomogeneous
-  val PrimalDualHomogeneousEx = ppl.dsl.opticvx.solvers.PrimalDualHomogeneousEx
-  val PrimalDualSubgradient = ppl.dsl.opticvx.solvers.PrimalDualSubgradient
-  val AlternatingProjections = ppl.dsl.opticvx.solvers.AlternatingProjections
+  //val PrimalDualHomogeneous = ppl.dsl.opticvx.solvers.PrimalDualHomogeneous
+  //val PrimalDualHomogeneousEx = ppl.dsl.opticvx.solvers.PrimalDualHomogeneousEx
+  //val PrimalDualSubgradient = ppl.dsl.opticvx.solvers.PrimalDualSubgradient
+  //val AlternatingProjections = ppl.dsl.opticvx.solvers.AlternatingProjections
+
+  val SolverRuntimeDefinite = ppl.dsl.opticvx.runtime.definite.SolverRuntimeDefinite
+  val SolverRuntimeCGen = ppl.dsl.opticvx.runtime.cgen.SolverRuntimeCGen
 
   class CvxSProblem(val problem: Problem) {
     def gen(generator: SolverGen): CvxSSolver = {
       new CvxSSolver(generator.gen(problem))
     }
-    def gen(): CvxSSolver = gen(PrimalDualOperatorSplitting)
   }
 
-  class CvxSSolver(val solver: Solver) {
-    def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*)(tolerance: Double): CvxSSolutionDefinite = {
-      throw new IRValidationException()
-      // if(pp.length != solver.arity) throw new IRValidationException()
-      // if(ins.length != solver.input.args.length) throw new IRValidationException()
-      // val spp: Seq[Int] = Seq(pp:_*)
-      // val srt = new SolverRuntimeDefinite(tolerance)
-      // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
-      // val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
-      // new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, 0.0, tolerance)
-    }
-    def cgen(): CvxSSolverCGen = {
-      throw new IRValidationException()
-      // val srt = new SolverRuntimeCGen(solver.arity)
-      // srt.setinputs(solver.input.args map ((a: Multi[AlmapShape]) =>
-      //   InputDescCGen(
-      //     a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
-      //     ((b: Seq[IntSym]) => (a.body.domain.eval(b)(srt.intlikei))),
-      //     ((b: Seq[IntSym]) => (a.body.codomain.eval(b)(srt.intlikei)))
-      // )))
-      // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
-      // val vv = solver.run(srt, srt.params, srt.inputs, mm)
-      // srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).body.eval(srt.params)(srt.intlikei), Seq()))
-      // new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).body)
+  class CvxSSolver(val solver: AVector) {
+    def compile(runtime: SolverRuntime): CvxSSolverCompiled = new CvxSSolverCompiled(runtime.compile(solver))
+
+    // def solve(pp: Int*)(ins: MultiSeq[MatrixDefinite]*)(tolerance: Double): CvxSSolutionDefinite = {
+    //   throw new IRValidationException()
+    //   // if(pp.length != solver.arity) throw new IRValidationException()
+    //   // if(ins.length != solver.input.args.length) throw new IRValidationException()
+    //   // val spp: Seq[Int] = Seq(pp:_*)
+    //   // val srt = new SolverRuntimeDefinite(tolerance)
+    //   // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, spp)
+    //   // val vv = solver.run[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, spp, Seq(ins:_*), mm)
+    //   // new CvxSSolutionDefinite(spp, vv(0), srt.converge_iter_count, 0.0, tolerance)
+    // }
+    // def cgen(): CvxSSolverCGen = {
+    //   throw new IRValidationException()
+    //   // val srt = new SolverRuntimeCGen(solver.arity)
+    //   // srt.setinputs(solver.input.args map ((a: Multi[AlmapShape]) =>
+    //   //   InputDescCGen(
+    //   //     a.dims.map((s: IRPoly) => ((b: Seq[IntSym]) => (s.eval(b)(srt.intlikei)))),
+    //   //     ((b: Seq[IntSym]) => (a.body.domain.eval(b)(srt.intlikei))),
+    //   //     ((b: Seq[IntSym]) => (a.body.codomain.eval(b)(srt.intlikei)))
+    //   // )))
+    //   // val mm = for(m <- solver.input.memory) yield srt.memoryallocfrom(m, srt.params)
+    //   // val vv = solver.run(srt, srt.params, srt.inputs, mm)
+    //   // srt.write_output(srt.vectorget(vv(0), solver.input.memory(0).body.eval(srt.params)(srt.intlikei), Seq()))
+    //   // new CvxSSolverCGen(srt, solver.input.args.length, vv(0), solver.input.memory(0).body)
+    // }
+  }
+
+  class CvxSSolverCompiled(val code: SolverCompiled) {
+    def solve(params: Int*)(ins: MultiSeq[DMatrix]*)(tolerance: Double): CvxSSolutionDefinite = {
+      val soln = code.eval(Seq(params:_*), Seq(ins:_*), Seq(), tolerance)
+      new CvxSSolutionDefinite(soln, Seq(params:_*), Seq(ins:_*), tolerance)
     }
   }
 
+  class CvxSSolutionDefinite(val soln: SolverResult, pp: Seq[Int], ins: Seq[MultiSeq[DMatrix]], val tolerance: Double) {
+    def resolve(x: CvxExprSymbol): Seq[Double] = {
+      val rcode = SolverRuntimeDefinite.compile(x.resolution)
+      rcode.eval(pp, ins, Seq(soln.data), tolerance).data
+    }
+    def num_iterations: Int = soln.iterationct
+    def timer: Double = soln.time
+  }
+
+  /*
   class CvxSSolverCGen(val srt: SolverRuntimeCGen, val numinputs: Int, val vv: MemorySym, val vvsize: IRPoly) {
     def code: String = srt.code
 
@@ -118,18 +139,19 @@ trait DCPOpsSolve extends DCPOpsFunction {
       new CvxSSolutionDefinite(pp, MultiSeqA0(vv), iterct, timer, tolerance)
     }
   }
+  */
 
-  implicit def definitescalar(a: Double): MultiSeq[MatrixDefinite] = {
-    val amd = MatrixDefinite(1, 1, Seq(a))
+  implicit def definitescalar(a: Double): MultiSeq[DMatrix] = {
+    val amd = DMatrix(1, 1, Seq(a))
     MultiSeqA0(amd)
   }
 
-  implicit def definitevector(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
-    val amd = MatrixDefinite(as.length, 1, as)
+  implicit def definitevector(as: Seq[Double]): MultiSeq[DMatrix] = {
+    val amd = DMatrix(1, as.length, as)
     MultiSeqA0(amd)
   }
 
-  implicit def definitematrix(as: Seq[Seq[Double]]): MultiSeq[MatrixDefinite] = {
+  implicit def definitematrix(as: Seq[Seq[Double]]): MultiSeq[DMatrix] = {
     val m = as.length
     if(m < 1) throw new IRValidationException()
     val n = as(0).length
@@ -138,20 +160,12 @@ trait DCPOpsSolve extends DCPOpsFunction {
       if(a.length != n) throw new IRValidationException()
     }
     val sas = as.foldLeft(Seq(): Seq[Double])((a,b) => a ++ b)
-    val amd = MatrixDefinite(m, n, sas)
+    val amd = DMatrix(n, m, sas)
     MultiSeqA0(amd)
   }
 
-  def definitematrixdiag(as: Seq[Double]): MultiSeq[MatrixDefinite] = {
-    MultiSeqN(1, as map (a => MultiSeqA0(MatrixDefinite(1,1,Seq(a)))))
-  }
-
-  class CvxSSolutionDefinite(val pp: Seq[Int], val vv: MultiSeq[Seq[Double]], val itercount: Int, val timer: Double, val tolerance: Double) {
-    def resolve(x: CvxExprSymbol): Seq[Double] = {
-      val srt = new SolverRuntimeDefinite(tolerance)
-      x.resolution.eval[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]](srt, pp, Seq(), Seq(vv))
-    }
-    def num_iterations: Int = itercount
+  def definitematrixdiag(as: Seq[Double]): MultiSeq[DMatrix] = {
+    MultiSeqN(1, as map (a => MultiSeqA0(DMatrix(1,1,Seq(a)))))
   }
 
   def problem(

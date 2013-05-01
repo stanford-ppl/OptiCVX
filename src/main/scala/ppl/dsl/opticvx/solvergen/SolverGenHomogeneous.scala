@@ -9,12 +9,10 @@ trait SolverGenHomogeneous extends SolverGen {
 
   def hcode(A: Almap, K: Cone, tol: AVector): AVector
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
+  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): AVector = {
     val varSize = A.domain
     val affineCstrtSize = A.codomain
     val coneSize = F.codomain
-
-    val x_out = vector(varSize)
 
     // Mx + v = 0
 
@@ -32,7 +30,7 @@ trait SolverGenHomogeneous extends SolverGen {
 
     val vx = hcode(M, K, tol)
 
-    x_out := slice(vx, 0, varSize) / slice(vx, varSize + affineCstrtSize + coneSize + coneSize, 1)
+    slice(vx, 0, varSize) / slice(vx, varSize + affineCstrtSize + coneSize + coneSize, 1)
   }
 
 }

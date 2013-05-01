@@ -6,50 +6,9 @@ import scala.collection.immutable.Seq
 
 trait SolverGen {
 
-  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): Unit
+  def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector): AVector
 
   private var input: InputDesc = null
-  private var variables: Seq[IRPoly] = null
-  private var vidx: Int = 0
-  private var prephase: Boolean = true
-  private var solveracc: Solver = null
-
-  case class SVariable(iidx: Int) {
-    def apply(sar: IRPoly*): SVariableEntry = SVariableEntry(iidx, Seq(sar:_*))
-  }
-
-  case class SVariableEntry(iidx: Int, sidx: Seq[IRPoly]) {
-    if(variables(iidx).dims.length != sidx.length) throw new IRValidationException()
-
-    def :=(src: AVector) {
-      if(!prephase) {
-        solveracc = SolverSeq(solveracc, SolverWrite(src.simplify, iidx, sidx))
-      }
-    }
-    def +=(src: AVector) {
-      this := svariableentry2vectorimpl(this) + src
-    }
-    def -=(src: AVector) {
-      this := svariableentry2vectorimpl(this) - src
-    }
-  }
-
-  implicit def svariable2svariableentryimpl(s: SVariable): SVariableEntry = {
-    if(variables(s.iidx).dims.length != 0) throw new IRValidationException()
-    SVariableEntry(s.iidx, Seq())
-  }
-
-  implicit def svariable2vectorimpl(s: SVariable): AVector = svariableentry2vectorimpl(s())
-
-  implicit def svariableentry2vectorimpl(s: SVariableEntry): AVector = {
-    if(prephase) {
-      // in prephase, all reads result in zero because the memory isn't defined
-      AVectorCatFor(variables(s.iidx), AVectorOne(input.promote))
-    }
-    else {
-      AVectorRead(input, s.iidx)
-    }
-  }
 
   def v2m(v: AVector): Almap = AlmapVector(v)
 
@@ -113,7 +72,6 @@ trait SolverGen {
 
   def diag(arg: AVector): Almap = AlmapDiagVector(arg)
 
-
   def zerocone(d: IRPoly): Cone = ConeFor(d, ConeZero(input.arity + 1))
   def freecone(d: IRPoly): Cone = ConeFor(d, ConeFree(input.arity + 1))
 
@@ -122,37 +80,68 @@ trait SolverGen {
   implicit def double2vector(x: Double): AVector = 
     AVectorScaleConstant(AVectorOne(input), x)
 
-  def scalar: SVariable = vector(IRPoly.const(1, input.arity))
-  def vector(len: IRPoly): SVariable = {
-    if(prephase) {
-      variables :+= Multi(Seq(), len)
-      SVariable(variables.length - 1)
+  /*
+  def converge(arg: AVector, itermax: Int)(body: AVector => (AVector, AVector)): AVector = {
+    val oldinput = input
+    input = InputDesc(input.arity, input.args, input.memory :+ arg.size)
+    val (cond, bx) = body(AVectorRead(input, oldinput.memory.length))
+    input = oldinput
+    AVectorConverge(arg, cond, bx)
+  }
+
+  def converge(arg: AVector)(body: AVector => (AVector, AVector)): AVector = {
+    converge(arg, -1)(body)
+  }
+  */
+
+  class SVar(val init: AVector) {
+    private var value: AVector = init
+    def :=(x: AVector) {
+      value = x
     }
-    else {
-      if(variables(vidx) != Multi(Seq(), len)) throw new IRValidationException()
-      vidx += 1
-      SVariable(vidx - 1)
+    def get: AVector = value
+  }
+  implicit protected def svar2avector(s: SVar): AVector = s.get
+
+  trait Converge {
+    private var svars: Seq[SVar] = Seq()
+    protected def state(init: AVector): SVar = {
+      if(init.input != input) throw new IRValidationException()
+      val rv = new SVar(init)
+      svars = svars :+ rv
+      rv
+    }
+    def pr[T](x: HasInput[T]): T = {
+      val isv: IRPoly = svars.foldLeft(IRPoly.const(0, input.arity))((a, u) => a + u.init.size)
+      if(x.input.pushMemory(isv) != input) throw new IRValidationException()
+      x.pushMemory(isv)
+    }
+    def body: AVector
+    val itermax: Int = -1
+    def run {
+      val isv: IRPoly = svars.foldLeft(IRPoly.const(0, input.arity))((a, u) => a + u.init.size)
+      val pmx: AVector = AVectorRead(input.pushMemory(isv), input.memory.length)
+      var ilx: IRPoly = IRPoly.const(0, input.arity)
+      for(s <- svars) {
+        s := AVectorSlice(pmx, ilx, s.init.size)
+        ilx = ilx + s.init.size
+      }
+      val oldinput = input
+      input = input.pushMemory(isv)
+      val cond = body
+      input = oldinput
+      val bsx: AVector = AVectorCat(svars map (s => s.get))
+      val isx: AVector = AVectorCat(svars map (s => s.init))
+      val ccx: AVector = AVectorConverge(isx, cond, bsx, itermax)
+      ilx = IRPoly.const(0, input.arity)
+      for(s <- svars) {
+        s := AVectorSlice(ccx, ilx, s.init.size)
+        ilx = ilx + s.init.size
+      }
     }
   }
 
-  def converge(condition: AVector, itermax: Int)(body: =>Unit) {
-    if(condition.size != IRPoly.const(1, input.arity)) throw new IRValidationException()
-    if(prephase) {
-      body
-    }
-    else {
-      val cursolver: Solver = solveracc
-      solveracc = SolverNull(input)
-      body
-      solveracc = SolverSeq(cursolver, SolverConverge(condition, itermax, solveracc))
-    }
-  }
-
-  def converge(condition: AVector)(body: =>Unit) {
-    converge(condition, -1)(body)
-  }
-
-  def gen(problem: Problem): Solver = {
+  def gen(problem: Problem): AVector = {
     if(!problem.isMemoryless) throw new IRValidationException()
 
     val A: Almap = problem.affineAlmap
@@ -163,28 +152,11 @@ trait SolverGen {
     val cone: Cone = problem.conicCone
 
     input = problem.input
-    variables = Seq()
-    prephase = true
-    solveracc = null
 
-    code(A, b, F, g, c, cone, AVectorTolerance(problem.input))
+    val rv = code(A, b, F, g, c, cone, AVectorTolerance(problem.input))
 
-    if(variables(0) != Multi(Seq(), problem.varSize)) throw new IRValidationException()
-    input = InputDesc(problem.arity, problem.input.args, variables)
-    prephase = false
-    vidx = 0
-    solveracc = SolverNull(input)
-
-    code(A.addMemory(variables), b.addMemory(variables), F.addMemory(variables), g.addMemory(variables), c.addMemory(variables), cone, AVectorTolerance(input))
-
-    if(vidx != variables.length) throw new IRValidationException()
-
-    val rv = solveracc
-
-    input = null
-    variables = null
-    prephase = true
-    solveracc = null
+    if(rv.input != problem.input) throw new IRValidationException()
+    if(rv.size != problem.varSize) throw new IRValidationException()
     
     rv
   }

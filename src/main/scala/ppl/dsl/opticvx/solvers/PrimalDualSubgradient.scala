@@ -5,7 +5,7 @@ import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
-
+/*
 object PrimalDualSubgradient extends SolverGen {
 
   def code(A: Almap, b: AVector, F: Almap, g: AVector, c: AVector, cone: Cone, tol: AVector) {
@@ -59,3 +59,4 @@ object PrimalDualSubgradient extends SolverGen {
     }
   }
 }
+*/

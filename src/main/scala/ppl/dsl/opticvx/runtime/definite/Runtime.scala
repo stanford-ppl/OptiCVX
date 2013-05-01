@@ -7,6 +7,17 @@ import scala.collection.immutable.Seq
 import ppl.dsl.opticvx.solvers._
 
 
+object SolverRuntimeDefinite extends SolverRuntime {
+  def compile(v: AVector): SolverCompiled = new SolverCompiledDefinite(v)
+}
+
+class SolverCompiledDefinite(v: AVector) extends SolverCompiled {
+  def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): SolverResult = {
+    throw new IRValidationException()
+  }
+}
+
+/*
 class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDefinite, MultiSeq[MatrixDefinite], Seq[Double], MultiSeq[Seq[Double]]] {
   //INTEGER OPERATIONS
   def intlikei: IntLike[Int] = IntLikeInt
@@ -135,3 +146,4 @@ class SolverRuntimeDefinite(val tol: Double) extends SolverRuntime[Int, MatrixDe
     m
   }
 }
+*/

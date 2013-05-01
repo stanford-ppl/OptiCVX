@@ -5,7 +5,7 @@ import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
-
+/*
 object PrimalDualOperatorSplitting extends SolverGen with SolverGenUtil {
 
 
@@ -53,4 +53,4 @@ object PrimalDualOperatorSplitting extends SolverGen with SolverGenUtil {
     x_out := slice(x, 0, varSize)
   }
 }
-
+*/

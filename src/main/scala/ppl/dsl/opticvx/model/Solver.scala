@@ -8,8 +8,9 @@ trait SolverRuntime {
   def compile(v: AVector): SolverCompiled
 }
 trait SolverCompiled {
-  def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): Seq[Double]
+  def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): SolverResult
 }
+case class SolverResult(data: Seq[Double], iterationct: Int, time: Double)
 
 case class DMatrix(domain: Int, codomain: Int, data: Seq[Double]) {
   val m = codomain

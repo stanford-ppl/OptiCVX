@@ -5,7 +5,7 @@ import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
-
+/*
 object PrimalDualHomogeneousEx extends SolverGenHomogeneous with SolverGenUtil {
 
 
@@ -31,4 +31,4 @@ object PrimalDualHomogeneousEx extends SolverGenHomogeneous with SolverGenUtil {
   }
 
 }
-
+*/
