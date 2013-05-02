@@ -177,7 +177,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     val fwriter = new FileWriter(fout)
     fwriter.write(code)
     fwriter.close()
-    val cmd = "gcc --std=gnu99 -O3 -ffast-math -funroll-loops -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    val cmd = "gcc --std=gnu99 -O3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
     println("[exec] " + cmd)
     val rt = java.lang.Runtime.getRuntime()
     val cproc = rt.exec(
@@ -433,14 +433,24 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
         val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
         emit("""
           double $nv[$osize];
-          for(int i = 0; i < $osize; i++) {
-            $nv[i] = 0.0;
-            for(int j = 0; j < $isize; j++) {
+          for(int i = 0; i < $osize; i++) $nv[i] = 0.0;
+          for(int j = 0; j < $isize; j++) {
+            for(int i = 0; i < $osize; i++) {
               $nv[i] += $m[j*$osize+i] * $xj;
             }
           }
           """,
           "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+        // emit("""
+        //   double $nv[$osize];
+        //   for(int i = 0; i < $osize; i++) {
+        //     $nv[i] = 0.0;
+        //     for(int j = 0; j < $isize; j++) {
+        //       $nv[i] += $m[j*$osize+i] * $xj;
+        //     }
+        //   }
+        //   """,
+        //   "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
         nv
       }
       case AVectorRead(input, iidx) => {
