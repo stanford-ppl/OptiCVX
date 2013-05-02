@@ -14,6 +14,7 @@ object AVector {
 
   val arityOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, ArityOp], AVector]()
   val inputOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, InputOp], AVector]()
+  val simplifyMemoMap = new scala.collection.mutable.HashMap[AVector, AVector]()
 }
 
 trait AVector extends HasInput[AVector] {
@@ -45,7 +46,12 @@ trait AVector extends HasInput[AVector] {
   def apply(at: IRPoly, size: IRPoly) = AVectorSlice(this, at, size)
   def is0: Boolean
   def isPure: Boolean
-  def simplify: AVector
+
+  final def simplify: AVector = {
+    AVector.simplifyMemoMap.getOrElseUpdate(this, this.simplifySub)
+  }
+
+  def simplifySub: AVector
 
   final def arityOp(op: ArityOp): AVector = {
     AVector.arityOpMemoMap.getOrElseUpdate((this, op), arityOpSub(op))
@@ -87,7 +93,7 @@ case class AVectorZero(val input: InputDesc, val size: IRPoly) extends AVector {
   def is0: Boolean = true
   def isPure: Boolean = true
 
-  def simplify: AVector = this
+  def simplifySub: AVector = this
 
   def invariantAtSub(idx: Int): Boolean = size.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = true
@@ -110,7 +116,7 @@ case class AVectorConst(val input: InputDesc, val data: Seq[Double]) extends AVe
   def is0: Boolean = false
   def isPure: Boolean = true
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     if(data forall (a => a == 0)) {
       AVectorZero(input, size)
     }
@@ -154,7 +160,7 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
   def is0: Boolean = args forall (a => a.is0)
   def isPure: Boolean = args forall (a => a.isPure)
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = args map (a => a.simplify)
     val saf = sa flatMap (a => {
       if(a.is0) {
@@ -201,7 +207,7 @@ case class AVectorNeg(val arg: AVector) extends AVector {
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
@@ -233,7 +239,7 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
   def is0: Boolean = arg.is0 || (scale == 0.0)
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
@@ -282,7 +288,7 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
   def is0: Boolean = args forall (a => a.is0)
   def isPure: Boolean = args forall (a => a.isPure)
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = args map (a => a.simplify)
     val saf = sa flatMap (a => {
       if(a.size == IRPoly.const(0, arity)) {
@@ -353,7 +359,7 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure  
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sb = arg.simplify
     if(sb.is0) {
       AVectorZero(input, size)
@@ -390,7 +396,7 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sb = arg.simplify
     if(sb.is0) {
       AVectorZero(input, size)
@@ -427,7 +433,7 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sb = arg.simplify
     if(sb.is0) {
       AVectorZero(input, size)
@@ -467,7 +473,7 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
   def is0: Boolean = false
   def isPure: Boolean = false
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
@@ -504,7 +510,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
   def is0: Boolean = false
   def isPure: Boolean = false
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
@@ -538,7 +544,7 @@ case class AVectorRead(val input: InputDesc, val iidx: Int) extends AVector {
   def is0: Boolean = false
   def isPure: Boolean = false
 
-  def simplify: AVector = this
+  def simplifySub: AVector = this
 
   def invariantAtSub(idx: Int): Boolean = input.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = (idx != iidx)
@@ -562,7 +568,7 @@ case class AVectorDot(val arg1: AVector, val arg2: AVector) extends AVector {
   def is0: Boolean = arg1.is0 || arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa1 = arg1.simplify
     val sa2 = arg2.simplify
     if(sa1.is0 || sa2.is0) {
@@ -595,7 +601,7 @@ case class AVectorMpy(val arg: AVector, val scale: AVector) extends AVector {
   def is0: Boolean = arg.is0 || scale.is0
   def isPure: Boolean = arg.isPure && scale.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     val ss = scale.simplify
     if(sa.is0 || ss.is0) {
@@ -627,7 +633,7 @@ case class AVectorDiv(val arg: AVector, val scale: AVector) extends AVector {
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure && scale.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     val ss = scale.simplify
     if(sa.is0) {
@@ -658,7 +664,7 @@ case class AVectorSqrt(val arg: AVector) extends AVector {
   def is0: Boolean = arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     if(sa.is0) {
       AVectorZero(input, size)
@@ -685,7 +691,7 @@ case class AVectorNorm2(val arg: AVector) extends AVector {
   def is0: Boolean = false //arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     AVectorNorm2(sa)
   }
@@ -708,7 +714,7 @@ case class AVectorNormInf(val arg: AVector) extends AVector {
   def is0: Boolean = false //arg.is0
   def isPure: Boolean = arg.isPure
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa = arg.simplify
     AVectorNormInf(sa)
   }
@@ -733,7 +739,7 @@ case class AVectorMax(val arg1: AVector, val arg2: AVector) extends AVector {
   def is0: Boolean = arg1.is0 && arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.is0
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa1 = arg1.simplify
     val sa2 = arg2.simplify
     if(sa1.is0 && sa2.is0) {
@@ -764,7 +770,7 @@ case class AVectorMin(val arg1: AVector, val arg2: AVector) extends AVector {
   def is0: Boolean = arg1.is0 && arg2.is0
   def isPure: Boolean = arg1.isPure && arg2.is0
 
-  def simplify: AVector = {
+  def simplifySub: AVector = {
     val sa1 = arg1.simplify
     val sa2 = arg2.simplify
     if(sa1.is0 && sa2.is0) {
@@ -789,7 +795,7 @@ case class AVectorTolerance(val input: InputDesc) extends AVector {
   def is0: Boolean = false
   def isPure: Boolean = false
 
-  def simplify: AVector = this
+  def simplifySub: AVector = this
 
   def invariantAtSub(idx: Int): Boolean = true
   def memoryInvariantAtSub(idx: Int): Boolean = true
@@ -815,7 +821,7 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
   def is0: Boolean = body.is0
   def isPure: Boolean = arg.isPure && body.isPure && cond.isPure
 
-  def simplify: AVector = AVectorConverge(arg.simplify, cond.simplify, body.simplify, itermax)
+  def simplifySub: AVector = AVectorConverge(arg.simplify, cond.simplify, body.simplify, itermax)
 
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && cond.invariantAt(idx) && body.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx) && cond.memoryInvariantAt(idx) && body.memoryInvariantAt(idx)
@@ -835,7 +841,7 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
 //   def is0: Boolean = arg.is0
 //   def isPure: Boolean = arg.isPure
 
-//   def simplify: AVector = AVectorPromoted(arg.simplify)
+//   def simplifySub: AVector = AVectorPromoted(arg.simplify)
 // }
 
 // case class AVectorMemoryPushed(val arg: AVector, val memsize: IRPoly) extends AVector {
@@ -854,6 +860,6 @@ case class AVectorConverge(val arg: AVector, val cond: AVector, val body: AVecto
 //   def is0: Boolean = arg.is0
 //   def isPure: Boolean = arg.isPure
 
-//   def simplify: AVector = AVectorMemoryPushed(arg.simplify, memsize)
+//   def simplifySub: AVector = AVectorMemoryPushed(arg.simplify, memsize)
 // }
 

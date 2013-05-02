@@ -81,7 +81,8 @@ class VectorSym(val vss: String) {
 class VectorArraySym(val name: String) extends VectorSym(name + "[$]") with Sym
 
 object SolverRuntimeCGen extends SolverRuntime {
-  def compile(v: AVector): SolverCompiled = {
+  def compile(vix: AVector): SolverCompiled = {
+    val v = vix.simplify
     val params: Seq[IntSym] = for(i <- 0 until v.arity) yield new IntSym("param" + i.toString)
     val compiler = new SolverCompilerCGen(params, Seq(), null, null)
     val result = compiler.eval(v)
@@ -317,6 +318,8 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
     mstr
   }
 
+  var contains_converge: Boolean = false
+
   def eval(v: AVector): VectorSym = {
     val memo = memolookup(v)
     if(memo != null) {
@@ -510,14 +513,12 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
         emit("while(1) {")
         emit(ev.codeacc)
         emit("for(int i = 0; i < $ssize; i++) $state[i] = $evbi;", "state" -> state, "ssize" -> ssize, "evbi" -> evbody.at(new IntSym("i")))
-        if((inherit_push == null)&&(inherit_promote == null)) {
-          emit("fprintf(stderr, \"%f\\n\", $cond);", "cond" -> evcond.at(new IntSymL(0)))
-        }
-        else {
-          emit("fprintf(stderr, \"    %f\\n\", $cond);", "cond" -> evcond.at(new IntSymL(0)))
+        if(!ev.contains_converge) {
+          emit("inner_loop_ct++;")
         }
         emit("if($cond <= 0) break;", "cond" -> evcond.at(new IntSymL(0)))
         emit("}")
+        this.contains_converge = true
         state
       }
       case _ =>
