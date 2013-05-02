@@ -504,17 +504,24 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
       case AVectorConverge(arg, cond, body, itermax) => {
         val evarg = eval(arg)
         val state = nextvector
+        val iterct = nextint
         val ev = new SolverCompilerCGen(params, memory :+ state, null, this)
         val evcond = ev.eval(cond)
         val evbody = ev.eval(body)
         val ssize = arg.size.eval(params)(IntLikeIntSym)
         emit("double $state[$ssize];", "state" -> state, "ssize" -> ssize)
         emit("for(int i = 0; i < $ssize; i++) $state[i] = $evai;", "state" -> state, "ssize" -> ssize, "evai" -> evarg.at(new IntSym("i")))
+        if(itermax >= 0) {
+          emit("int $iterct = 0;", "iterct" -> iterct)
+        }
         emit("while(1) {")
         emit(ev.codeacc)
         emit("for(int i = 0; i < $ssize; i++) $state[i] = $evbi;", "state" -> state, "ssize" -> ssize, "evbi" -> evbody.at(new IntSym("i")))
         if(!ev.contains_converge) {
           emit("inner_loop_ct++;")
+        }
+        if(itermax >= 0) {
+          emit("$iterct++;\nif($iterct >= " + itermax.toString + ") break;", "iterct" -> iterct)
         }
         emit("if($cond <= 0) break;", "cond" -> evcond.at(new IntSymL(0)))
         emit("}")

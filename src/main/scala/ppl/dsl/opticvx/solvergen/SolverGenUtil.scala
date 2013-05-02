@@ -131,7 +131,6 @@ trait SolverGenUtil {
 
     def proj(u: AVector, v: AVector, x0: AVector): AVector = {
       val imax = itermax
-      val Ax0 = A*x0
 
       object CGConverge extends Converge {
         val x = state(x0)
