@@ -56,7 +56,7 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val tol: Double = 1e-4
     /* generate code for the solver */
     println("compiling solver code...")
-    val codeobj = tictoc(solver.compile(SolverRuntimeDefinite))
+    val codeobj = tictoc(solver.compile(SolverRuntimeCGen))
     /* run the generated code */
     println("solving the problem...")
     val soln = tictoc(codeobj.solve(m_in, n_in)(F_in, definitematrixdiag(D_in), mu_in, W_in)(tol))

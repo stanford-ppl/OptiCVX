@@ -7,10 +7,526 @@ import scala.collection.immutable.Set
 
 import ppl.dsl.opticvx.solvers._
 
+import java.io._
+import java.lang.Runtime
+
+
+trait Sym {
+  def name: String
+}
+class FlatSym(val name: String) extends Sym
+class IntSym(val name: String) extends Sym
+class IntSymL(val i: Int) extends IntSym(i.toString)
+object IntLikeIntSym extends IntLike[IntSym] {
+  def add(x: IntSym, y: IntSym): IntSym = {
+    if((x.isInstanceOf[IntSymL])&&(y.isInstanceOf[IntSymL])) {
+      new IntSymL(x.asInstanceOf[IntSymL].i + y.asInstanceOf[IntSymL].i)
+    }
+    else if((x.isInstanceOf[IntSymL])&&(x.asInstanceOf[IntSymL].i == 0)) {
+      y
+    }
+    else if((y.isInstanceOf[IntSymL])&&(y.asInstanceOf[IntSymL].i == 0)) {
+      x
+    }
+    else {
+      new IntSym("(" + x.name + " + " + y.name + ")")
+    }
+  }
+  def neg(x: IntSym): IntSym = {
+    if(x.isInstanceOf[IntSymL]) {
+      new IntSymL(-x.asInstanceOf[IntSymL].i)
+    }
+    else {
+      new IntSym("(-" + x.name + ")")
+    }
+  }
+  def multiply(x: IntSym, y: IntSym): IntSym = {
+    if((x.isInstanceOf[IntSymL])&&(y.isInstanceOf[IntSymL])) {
+      new IntSymL(x.asInstanceOf[IntSymL].i * y.asInstanceOf[IntSymL].i)
+    }
+    else if((x.isInstanceOf[IntSymL])&&(x.asInstanceOf[IntSymL].i == 0)) {
+      new IntSymL(0)
+    }
+    else if((y.isInstanceOf[IntSymL])&&(y.asInstanceOf[IntSymL].i == 0)) {
+      new IntSymL(0)
+    }
+    else if((x.isInstanceOf[IntSymL])&&(x.asInstanceOf[IntSymL].i == 1)) {
+      y
+    }
+    else if((y.isInstanceOf[IntSymL])&&(y.asInstanceOf[IntSymL].i == 1)) {
+      x
+    }
+    else {
+      new IntSym("(" + x.name + " * " + y.name + ")")
+    }
+  }
+  def divide(x: IntSym, r: Int): IntSym = {
+    if(x.isInstanceOf[IntSymL]) {
+      new IntSymL(x.asInstanceOf[IntSymL].i / r)
+    }
+    else if(r == 1) {
+      x
+    }
+    else {
+      new IntSym("(" + x.name + " / " + r.toString + ")")
+    }
+  }
+  implicit def int2T(x: Int): IntSym = {
+    new IntSymL(x)
+  }
+}
+class VectorSym(val vss: String) {
+  def at(idx: IntSym) = new FlatSym(vss.replace("$", idx.name))
+}
+class VectorArraySym(val name: String) extends VectorSym(name + "[$]") with Sym
 
 object SolverRuntimeCGen extends SolverRuntime {
   def compile(v: AVector): SolverCompiled = {
-    throw new IRValidationException()
+    val params: Seq[IntSym] = for(i <- 0 until v.arity) yield new IntSym("param" + i.toString)
+    val compiler = new SolverCompilerCGen(params, Seq(), null, null)
+    val result = compiler.eval(v)
+    var code = """
+#include <math.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "../src/solver.h"
+
+typedef union memory_t {
+  union memory_t* idx[0];
+  double vec[0];
+} memory_t;
+
+//returns the number of inner loop iterations required to converge
+static solution_t solve(int* params, input_t** inputs, double* output, double tolerance) {"""
+    code += "\nint inner_loop_ct = 0;\n\n"
+    for(i <- 0 until v.arity) {
+      code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+    }
+    for(i <- 0 until v.input.args.length) {
+      code += "input_t* input" + i.toString + " = inputs[" + i.toString + "];\n"
+    }
+    code += "\n"
+    code += compiler.codeacc
+    code += "\nfor(int i = 0; i < " + v.size.eval(params)(IntLikeIntSym).name + "; i++) output[i] = " + result.at(new IntSym("i")).name + ";\n"
+    code += "\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
+    
+    code += "static int variable_size(int* params) {\n"
+    for(i <- 0 until v.arity) {
+      code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+    }
+    code += "return " + v.size.eval(params)(IntLikeIntSym).name + ";\n}\n\n"
+    for(i <- 0 until v.input.args.length) {
+      for(j <- 0 until v.input.args(i).dims.length) {
+        code += "static int structure_input" + i.toString + "_order" + j.toString + "(int* params, int* iidx) {\n"
+        for(i <- 0 until v.arity) {
+          code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+        }
+        val pps = for (k <- 0 until v.arity) yield new IntSym("params[" + k.toString + "]")
+        val iis = for (k <- 0 until j) yield new IntSym("iidx[" + k.toString + "]")
+        val szs = v.input.args(i).dims(j).eval(pps ++ iis)(IntLikeIntSym)
+        code += "return " + szs.name + ";\n}\n\n"
+      }
+      code += "static matrix_shape_t shape_input" + i.toString + "(int* params, int* iidx) {\n"
+      for(i <- 0 until v.arity) {
+        code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+      }
+      val pps = for (k <- 0 until v.arity) yield new IntSym("params[" + k.toString + "]")
+      val iis = for (k <- 0 until v.input.args(i).dims.length) yield new IntSym("iidx[" + k.toString + "]")
+      val dm = v.input.args(i).body.domain.eval(pps ++ iis)(IntLikeIntSym)
+      val cdm = v.input.args(i).body.codomain.eval(pps ++ iis)(IntLikeIntSym)
+      code += "matrix_shape_t rv;\n"
+      code += "rv.domain = " + dm.name + ";\n"
+      code += "rv.codomain = " + cdm.name + ";\n"
+      code += "return rv;\n}\n\n"
+      code += "int (*inputdesc_structure" + i.toString + "[])(int* params, int* idxs) = {\n"
+      for(j <- 0 until v.input.args(i).dims.length) {
+        if(j != 0) code += ",\n"
+        code += "structure_input" + i.toString + "_order" + j.toString
+      }
+      code += "};\n\n"
+      code += "input_desc_t inputdesc" + i.toString + " = {\n"
+      code += ".order = " + v.input.args(i).dims.length.toString + ",\n"
+      code += ".structure = inputdesc_structure" + i.toString + ",\n"
+      code += ".shape = shape_input" + i.toString + "};\n\n"
+    }
+    code += "input_desc_t* solver_inputdescs[] = {\n"
+    for(i <- 0 until v.input.args.length) {
+      if(i != 0) code += ",\n"
+      code += "&inputdesc" + i.toString
+    }
+    code += "};\n\n"
+    code += "solver_t solver = {\n"
+    code += ".num_params = " + v.arity.toString + ",\n"
+    code += ".num_inputs = " + v.input.args.length + ",\n"
+    code += ".input_descs = solver_inputdescs,\n"
+    code += ".variable_size = variable_size,\n"
+    code += ".solve = solve};\n\n"
+
+    val lrx = code.split("\n")
+    code = ""
+    var indentlvl = 0
+    for(l <- lrx) {
+      if((l.contains("}"))&&(!l.contains("{"))) indentlvl -= 1
+      code += ("  " * indentlvl) + l.trim + "\n"
+      if((l.contains("{"))&&(!l.contains("}"))) indentlvl += 1
+    }
+    
+    val fout = new File("cgen/gen/out.c")
+    val fwriter = new FileWriter(fout)
+    fwriter.write(code)
+    fwriter.close()
+    val cmd = "gcc --std=gnu99 -O3 -ffast-math -funroll-loops -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    println("[exec] " + cmd)
+    val rt = java.lang.Runtime.getRuntime()
+    val cproc = rt.exec(
+      Array[String]("bash", "-c", cmd),
+      null,
+      new File("cgen"))
+    val gccrv = cproc.waitFor()
+    if(gccrv != 0) throw new Exception("Error in compiling generated source.")
+
+    new SolverCompiledCGen(v.input, v.size)
+  }
+}
+
+class SolverCompiledCGen(val inputdesc: InputDesc, val vvsize: IRPoly) extends SolverCompiled {
+  def eval(params: Seq[Int], inputs: Seq[MultiSeq[DMatrix]], memory: Seq[Seq[Double]], tolerance: Double): SolverResult = {
+    val pp = Seq(params:_*)
+    if(pp.length != inputdesc.arity) throw new IRValidationException()
+    if(inputs.length != inputdesc.args.length) throw new IRValidationException()
+    val fin = new File("cgen/data/in.dat")
+    val fwriter = new FileWriter(fin)
+    for(a <- inputs) {
+      for(l <- a.linearize) {
+        fwriter.write(l.formatc + "\n")
+      }
+    }
+    fwriter.close()
+    var cmd: String = "bin/cgen.out " + tolerance.toString
+    for(i <- 0 until pp.length) {
+      cmd += " " + pp(i).toString
+    }
+    cmd += " <data/in.dat >data/out.dat 2>log/cgen.e"
+    val rt = java.lang.Runtime.getRuntime()
+    println("[exec] " + cmd)
+    val cproc = rt.exec(
+      Array[String]("bash", "-c", cmd),
+      null,
+      new File("cgen"))
+    val solverrv = cproc.waitFor()
+    if(solverrv != 0) throw new Exception("Error in running generated program.")
+    val vvsz = vvsize.eval(pp)(IntLikeInt)
+    val fout = new File("cgen/data/out.dat")
+    val freader = new FileReader(fout)
+    val bfreader = new BufferedReader(freader)
+    val vv = for(i <- 0 until vvsz) yield bfreader.readLine().toDouble
+    val Array(iterlabel: String, siterct: String) = bfreader.readLine().split(" ")
+    if(iterlabel != "iterations:") throw new Exception("Expected iteration count label.")
+    val iterct: Int = siterct.toInt
+    val Array(timelabel: String, stimer: String) = bfreader.readLine().split(" ")
+    if(timelabel != "time:") throw new Exception("Expected time clock label.")
+    val timer: Double = stimer.toDouble
+    bfreader.close()
+    freader.close()
+    SolverResult(vv, iterct, timer)
+  }
+}
+
+class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_promote: SolverCompilerCGen, inherit_push: SolverCompilerCGen) {
+  val memocache = new scala.collection.mutable.HashMap[AVector, VectorSym]()
+
+  def memolookup(v: AVector): VectorSym = {
+    val rv = memocache.getOrElse(v, null)
+    if(rv == null) {
+      if(inherit_promote != null) {
+        if(v.invariantAt(v.arity - 1)) {
+          val dv = v.demote
+          inherit_promote.eval(dv)
+        }
+        else {
+          null
+        }
+      }
+      else if(inherit_push != null) {
+        if(v.memoryInvariantAt(v.input.memory.length - 1)) {
+          val dv = v.popMemory
+          inherit_push.eval(dv)
+        }
+        else {
+          null
+        }
+      }
+      else {
+        null
+      }
+    }
+    else {
+      rv
+    }
+  }
+
+  private var vectorsym_ni: Int = 0
+  private def nextvector: VectorArraySym = {
+    if(inherit_promote != null) {
+      inherit_promote.nextvector
+    }
+    else if(inherit_push != null) {
+      inherit_push.nextvector
+    }
+    else {
+      vectorsym_ni += 1
+      new VectorArraySym("x" + vectorsym_ni.toString)
+    }
+  }
+
+  private var intsym_ni: Int = 0
+  private def nextint: IntSym = {
+    if(inherit_promote != null) {
+      inherit_promote.nextint
+    }
+    else if(inherit_push != null) {
+      inherit_push.nextint
+    }
+    else {
+      intsym_ni += 1
+      new IntSym("i" + intsym_ni.toString)
+    }
+  }
+
+  var codeacc: String = ""
+  private def emit(code: String, repls: Tuple2[String, Sym]*) {
+    var accv = code.trim
+    for(r <- repls) {
+      accv = accv.replace("$" + r._1, r._2.name)
+    }
+    if(accv.contains("$")) {
+     println(accv)
+     throw new IRValidationException()
+    }
+    codeacc += accv + "\n"
+  }
+
+    
+  def getInput(iidx: Int, sidx: Seq[IRPoly]): String = {
+    var mstr: String = "input" + iidx.toString
+    for(s <- sidx) {
+      mstr += "->idx[" + s.eval(params)(IntLikeIntSym).name + "]"
+    }
+    mstr += "->mat"
+    mstr
+  }
+
+  def eval(v: AVector): VectorSym = {
+    val memo = memolookup(v)
+    if(memo != null) {
+      return memo
+    }
+
+    val rv: VectorSym = v match {
+      case AVectorZero(input, size) =>
+        new VectorSym("0.0")
+      case AVectorConst(input, data) => {
+        if(data.length == 1) {
+          new VectorSym(data(0).toString)
+        }
+        else {
+          val v = nextvector
+          emit("double $v[$size] = { " + data.drop(1).foldLeft(data(0).toString)((a, u) => a + ", " + u.toString) + " };",
+            "v" -> v, "size" -> IntLikeIntSym.int2T(data.length))
+          v
+        }
+      }
+      case AVectorSum(args) => {
+        val avs: Seq[VectorSym] = args map (a => eval(a))
+        new VectorSym("(" + avs.drop(1).foldLeft(avs(0).vss) ((a,u) => a + " + " + u.vss) + ")")
+      }
+      case AVectorNeg(arg) => {
+        val vs = eval(arg)
+        new VectorSym("(-" + vs.vss + ")")
+      }
+      case AVectorScaleConstant(arg, scale) =>{
+        val vs = eval(arg)
+        new VectorSym("(" + vs.vss + " * " + scale.toString + ")")
+      }
+      case AVectorCat(args) => {
+        val avs: Seq[VectorSym] = args map (a => eval(a))
+        val nv = nextvector
+        emit("double $nv[$size];", "nv" -> nv, "size" -> v.size.eval(params)(IntLikeIntSym))
+        emit("{")
+        emit("int i = 0; int j;")
+        for (k <- 0 until args.length) {
+          emit("for(j = 0; j < $asize; i++, j++) $nv[i] = $aj;",
+            "nv" -> nv,
+            "asize" -> args(k).size.eval(params)(IntLikeIntSym), 
+            "aj" -> avs(k).at(new IntSym("j")))
+        }
+        emit("}")
+        nv
+      }
+      case AVectorCatFor(len, arg) => {
+        val osize = v.size.eval(params)(IntLikeIntSym)
+        val nv = nextvector
+        val i = nextint
+        val j = nextint
+        val k = nextint
+        val ev = new SolverCompilerCGen(params :+ i, memory, this, null)
+        val ilv = ev.eval(arg)
+        emit("double $nv[$osize];", "nv" -> nv, "osize" -> osize)
+        emit("for(int $i = 0, $j = 0; $i < $len; $i++) {",
+          "i" -> i, "j" -> j, "len" -> len.eval(params)(IntLikeIntSym))
+        emit(ev.codeacc)
+        emit("for(int $k = 0; $k < $msize; $j++, $k++) $nv[$j] = $ilvk;",
+          "k" -> k, "j" -> j, "msize" -> arg.size.eval(params :+ i)(IntLikeIntSym), "nv" -> nv, "ilvk" -> ilv.at(k))
+        emit("}")
+        nv
+      }
+      case AVectorSlice(arg, at, size) => {
+        val vs = eval(arg)
+        val evat = at.eval(params)(IntLikeIntSym)
+        new VectorSym(vs.at(IntLikeIntSym.add(new IntSym("$"), evat)).name)
+      }
+      case AVectorSumFor(len, arg) => {
+        val osize = v.size.eval(params)(IntLikeIntSym)
+        val nv = nextvector
+        val i = nextint
+        val j = nextint
+        val k = nextint
+        val ev = new SolverCompilerCGen(params :+ j, memory, this, null)
+        val ilv = ev.eval(arg)
+        emit("double $nv[$osize];", "nv" -> nv, "osize" -> osize)
+        emit("for(int $i = 0; $i < $osize; $i++) $nv[$i] = 0.0;", "nv" -> nv, "i" -> i, "osize" -> osize)
+        emit("for(int $j = 0; $j < $len; $j++) {",
+          "j" -> j, "len" -> len.eval(params)(IntLikeIntSym))
+        emit(ev.codeacc)
+        emit("for(int $k = 0; $k < $osize; $k++) $nv[$k] += $ilvk;",
+          "k" -> k, "osize" -> osize, "nv" -> nv, "ilvk" -> ilv.at(k))
+        emit("}")
+        nv
+      }
+      case AVectorMpyInput(arg, iidx, sidx) => {
+        val vs = eval(arg)
+        val mstr = new FlatSym(getInput(iidx, sidx))
+        val nv = nextvector
+        val isize = arg.size.eval(params)(IntLikeIntSym)
+        val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+        emit("""
+          double $nv[$osize];
+          for(int i = 0; i < $osize; i++) {
+            $nv[i] = 0.0;
+            for(int j = 0; j < $isize; j++) {
+              $nv[i] += $m[i*$isize+j] * $xj;
+            }
+          }
+          """,
+          "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+        nv
+      }
+      case AVectorMpyInputT(arg, iidx, sidx) => {
+        val vs = eval(arg)
+        val mstr = new FlatSym(getInput(iidx, sidx))
+        val nv = nextvector
+        val isize = arg.size.eval(params)(IntLikeIntSym)
+        val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+        emit("""
+          double $nv[$osize];
+          for(int i = 0; i < $osize; i++) {
+            $nv[i] = 0.0;
+            for(int j = 0; j < $isize; j++) {
+              $nv[i] += $m[j*$osize+i] * $xj;
+            }
+          }
+          """,
+          "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+        nv
+      }
+      case AVectorRead(input, iidx) => {
+        memory(iidx)
+      }
+      case AVectorDot(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        val nv = nextvector
+        val asize = arg1.size.eval(params)(IntLikeIntSym)
+        emit("double d$nv = 0.0;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) d$nv += $av1i * $av2i;",
+          "asize" -> asize, "nv" -> nv, "av1i" -> av1.at(new IntSym("i")), "av2i" -> av2.at(new IntSym("i")))
+        new VectorSym("d" + nv.name)
+      }
+      case AVectorMpy(arg, scale) => {
+        val va = eval(arg)
+        val vs = eval(scale)
+        new VectorSym("(" + va.vss + " * " + vs.at(new IntSymL(0)).name + ")")
+      }
+      case AVectorDiv(arg, scale) => {
+        val va = eval(arg)
+        val vs = eval(scale)
+        new VectorSym("(" + va.vss + " / " + vs.at(new IntSymL(0)).name + ")")
+      }
+      case AVectorSqrt(arg) => {
+        val va = eval(arg)
+        new VectorSym("sqrt(" + va.vss + ")")
+      }
+      case AVectorNorm2(arg) => {
+        val av = eval(arg)
+        val nv = nextvector
+        val asize = arg.size.eval(params)(IntLikeIntSym)
+        emit("double d$nv = 0.0;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) d$nv += $avi * $avi;",
+          "asize" -> asize, "nv" -> nv, "avi" -> av.at(new IntSym("i")))
+        new VectorSym("d" + nv.name)
+      }
+      case AVectorNormInf(arg) => {
+        val av = eval(arg)
+        val nv = nextvector
+        val asize = arg.size.eval(params)(IntLikeIntSym)
+        emit("double d$nv = 0.0;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) d$nv = fmax(d$nv, fabs($avi));",
+          "asize" -> asize, "nv" -> nv, "avi" -> av.at(new IntSym("i")))
+        new VectorSym("d" + nv.name)
+      }
+      case AVectorMax(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        new VectorSym("fmax(" + av1.vss + ", " + av2.vss + ")")
+      }
+      case AVectorMin(arg1, arg2) => {
+        val av1 = eval(arg1)
+        val av2 = eval(arg2)
+        new VectorSym("fmin(" + av1.vss + ", " + av2.vss + ")")
+      }
+      case AVectorTolerance(input) => {
+        new VectorSym("tolerance")
+      }
+      case AVectorConverge(arg, cond, body, itermax) => {
+        val evarg = eval(arg)
+        val state = nextvector
+        val ev = new SolverCompilerCGen(params, memory :+ state, null, this)
+        val evcond = ev.eval(cond)
+        val evbody = ev.eval(body)
+        val ssize = arg.size.eval(params)(IntLikeIntSym)
+        emit("double $state[$ssize];", "state" -> state, "ssize" -> ssize)
+        emit("for(int i = 0; i < $ssize; i++) $state[i] = $evai;", "state" -> state, "ssize" -> ssize, "evai" -> evarg.at(new IntSym("i")))
+        emit("while(1) {")
+        emit(ev.codeacc)
+        emit("for(int i = 0; i < $ssize; i++) $state[i] = $evbi;", "state" -> state, "ssize" -> ssize, "evbi" -> evbody.at(new IntSym("i")))
+        if((inherit_push == null)&&(inherit_promote == null)) {
+          emit("fprintf(stderr, \"%f\\n\", $cond);", "cond" -> evcond.at(new IntSymL(0)))
+        }
+        else {
+          emit("fprintf(stderr, \"    %f\\n\", $cond);", "cond" -> evcond.at(new IntSymL(0)))
+        }
+        emit("if($cond <= 0) break;", "cond" -> evcond.at(new IntSymL(0)))
+        emit("}")
+        state
+      }
+      case _ =>
+        throw new IRValidationException()
+    }
+
+    memocache += (v -> rv)
+
+    rv
   }
 }
 

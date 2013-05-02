@@ -26,7 +26,7 @@ trait AVector extends HasInput[AVector] {
 
   //this is a fast, incorrect equals function
   override def equals(x: Any): Boolean = (x match {
-      case u: AVector => (cachedHashCode == u.cachedHashCode)
+      case u: AVector => (cachedHashCode == u.cachedHashCode)&&(x.getClass == this.getClass)
       case _ => false
     })
 
@@ -51,7 +51,15 @@ trait AVector extends HasInput[AVector] {
     AVector.arityOpMemoMap.getOrElseUpdate((this, op), arityOpSub(op))
   }
   final def inputOp(op: InputOp): AVector = {
-    AVector.inputOpMemoMap.getOrElseUpdate((this, op), inputOpSub(op))
+    val rv = AVector.inputOpMemoMap.getOrElseUpdate((this, op), inputOpSub(op))
+    if(rv.size != size) {
+      println(this.getClass.getName)
+      println(rv.getClass.getName)
+      println(rv.size)
+      println(size)
+      throw new IRValidationException()
+    }
+    rv
   }
 
   def arityOpSub(op: ArityOp): AVector
@@ -128,7 +136,11 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
   for(a <- args.drop(1)) {
     if(a.arity != args(0).arity) throw new IRValidationException()
     if(a.input != args(0).input) throw new IRValidationException()
-    if(a.size != args(0).size) throw new IRValidationException()
+    if(a.size != args(0).size) {
+      println(a)
+      println(args(0))
+      throw new IRValidationException()
+    }
   }
 
   arityVerify()
@@ -484,7 +496,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
   def inputOpSub(op: InputOp): AVector = {
     if(op.xs.length != input.args.length) throw new IRValidationException()
     for(i <- 0 until input.args.length) {
-      if(op.xs(i).body.arity != input.args(i).arity) throw new IRValidationException()
+      if(op.xs(i).body.arity != input.args(i).body.arity) throw new IRValidationException()
     }
     op.xs(iidx).body.substituteSeq(sidx).T.mmpy(arg.inputOp(op))
   }
