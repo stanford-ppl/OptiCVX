@@ -212,8 +212,16 @@ case class AVectorNeg(val arg: AVector) extends AVector {
     if(sa.is0) {
       AVectorZero(input, size)
     }
-    else if(arg.isInstanceOf[AVectorConst]) {
-      AVectorConst(input, for(u <- arg.asInstanceOf[AVectorConst].data) yield -u)
+    else if(sa.isInstanceOf[AVectorConst]) {
+      AVectorConst(input, for(u <- sa.asInstanceOf[AVectorConst].data) yield -u)
+    }
+    else if(sa.isInstanceOf[AVectorScaleConstant]) {
+      val vsa = sa.asInstanceOf[AVectorScaleConstant]
+      AVectorScaleConstant(vsa.arg, -vsa.scale)
+    }
+    else if(sa.isInstanceOf[AVectorNeg]) {
+      val vsa = sa.asInstanceOf[AVectorNeg]
+      vsa.arg
     }
     else {
       AVectorNeg(sa)
@@ -253,8 +261,16 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
     else if(scale == -1.0) {
       AVectorNeg(sa).simplify
     }
-    else if(arg.isInstanceOf[AVectorConst]) {
-      AVectorConst(input, for(u <- arg.asInstanceOf[AVectorConst].data) yield u * scale)
+    else if(sa.isInstanceOf[AVectorConst]) {
+      AVectorConst(input, for(u <- sa.asInstanceOf[AVectorConst].data) yield u * scale)
+    }
+    else if(sa.isInstanceOf[AVectorScaleConstant]) {
+      val vsa = sa.asInstanceOf[AVectorScaleConstant]
+      AVectorScaleConstant(vsa.arg, vsa.scale * scale)
+    }
+    else if(sa.isInstanceOf[AVectorNeg]) {
+      val vsa = sa.asInstanceOf[AVectorNeg]
+      AVectorScaleConstant(vsa.arg, -scale)
     }
     else {
       AVectorScaleConstant(sa, scale)

@@ -410,37 +410,48 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
       case AVectorMpyInput(arg, iidx, sidx) => {
         val vs = eval(arg)
         val mstr = new FlatSym(getInput(iidx, sidx))
-        val nv = nextvector
-        val isize = arg.size.eval(params)(IntLikeIntSym)
-        val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
-        emit("""
-          double $nv[$osize];
-          for(int i = 0; i < $osize; i++) {
-            $nv[i] = 0.0;
-            for(int j = 0; j < $isize; j++) {
-              $nv[i] += $m[i*$isize+j] * $xj;
+        if(arg.size == IRPoly.const(1, arg.arity)) {
+          new VectorSym("(" + mstr.name + "[$] * " + vs.at(new IntSymL(0)).name + ")")
+        }
+        else {
+          val nv = nextvector
+          val isize = arg.size.eval(params)(IntLikeIntSym)
+          val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+          emit("""
+            double $nv[$osize];
+            for(int i = 0; i < $osize; i++) {
+              $nv[i] = 0.0;
+              for(int j = 0; j < $isize; j++) {
+                $nv[i] += $m[i*$isize+j] * $xj;
+              }
             }
-          }
-          """,
-          "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
-        nv
+            """,
+            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+          nv
+        }
       }
       case AVectorMpyInputT(arg, iidx, sidx) => {
         val vs = eval(arg)
         val mstr = new FlatSym(getInput(iidx, sidx))
-        val nv = nextvector
-        val isize = arg.size.eval(params)(IntLikeIntSym)
-        val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
-        emit("""
-          double $nv[$osize];
-          for(int i = 0; i < $osize; i++) $nv[i] = 0.0;
-          for(int j = 0; j < $isize; j++) {
-            for(int i = 0; i < $osize; i++) {
-              $nv[i] += $m[j*$osize+i] * $xj;
+        if(arg.size == IRPoly.const(1, arg.arity)) {
+          new VectorSym("(" + mstr.name + "[$] * " + vs.at(new IntSymL(0)).name + ")")
+        }
+        else {
+          val nv = nextvector
+          val isize = arg.size.eval(params)(IntLikeIntSym)
+          val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+          emit("""
+            double $nv[$osize];
+            for(int i = 0; i < $osize; i++) $nv[i] = 0.0;
+            for(int j = 0; j < $isize; j++) {
+              for(int i = 0; i < $osize; i++) {
+                $nv[i] += $m[j*$osize+i] * $xj;
+              }
             }
-          }
-          """,
-          "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+            """,
+            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
+          nv
+        }
         // emit("""
         //   double $nv[$osize];
         //   for(int i = 0; i < $osize; i++) {
@@ -451,7 +462,6 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
         //   }
         //   """,
         //   "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(new IntSym("j")))
-        nv
       }
       case AVectorRead(input, iidx) => {
         memory(iidx)
