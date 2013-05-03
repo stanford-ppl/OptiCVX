@@ -26,10 +26,10 @@ trait AVector extends HasInput[AVector] {
   override def hashCode(): Int = cachedHashCode
 
   //this is a fast, incorrect equals function
-  override def equals(x: Any): Boolean = (x match {
-      case u: AVector => (cachedHashCode == u.cachedHashCode)&&(x.getClass == this.getClass)
-      case _ => false
-    })
+  // override def equals(x: Any): Boolean = (x match {
+  //     case u: AVector => (cachedHashCode == u.cachedHashCode)&&(x.getClass == this.getClass)
+  //     case _ => false
+  //   })
 
   def arityVerify() {
     if(size.arity != arity) throw new IRValidationException()
@@ -48,7 +48,16 @@ trait AVector extends HasInput[AVector] {
   def isPure: Boolean
 
   final def simplify: AVector = {
-    AVector.simplifyMemoMap.getOrElseUpdate(this, this.simplifySub)
+    val rv = AVector.simplifyMemoMap.getOrElseUpdate(this, this.simplifySub)
+    if(rv.size != size) {
+      println(this.getClass.getName)
+      println(rv.size)
+      println(size)
+      println(rv)
+      println(this)
+      throw new IRValidationException()
+    }
+    rv
   }
 
   def simplifySub: AVector
@@ -143,8 +152,8 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
     if(a.arity != args(0).arity) throw new IRValidationException()
     if(a.input != args(0).input) throw new IRValidationException()
     if(a.size != args(0).size) {
-      println(a)
-      println(args(0))
+      println(a.size)
+      println(args(0).size)
       throw new IRValidationException()
     }
   }
@@ -178,6 +187,15 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
     }
     else if(saf.length == 1) {
       saf(0)
+    }
+    else if(saf forall (s => s.isInstanceOf[AVectorCat])) {
+      val safc: Seq[AVectorCat] = saf map (s => s.asInstanceOf[AVectorCat])
+      if(safc.drop(1) forall (s => (s.args map (a => a.size)) == (safc(0).args map (a => a.size)))) {
+        AVectorCat(for(i <- 0 until safc(0).args.length) yield AVectorSum(safc map (s => s.args(i)))).simplify
+      }
+      else {
+        AVectorSum(saf)
+      }
     }
     else {
       AVectorSum(saf)
@@ -222,6 +240,10 @@ case class AVectorNeg(val arg: AVector) extends AVector {
     else if(sa.isInstanceOf[AVectorNeg]) {
       val vsa = sa.asInstanceOf[AVectorNeg]
       vsa.arg
+    }
+    else if(sa.isInstanceOf[AVectorCat]) {
+      val vsa = sa.asInstanceOf[AVectorCat]
+      AVectorCat(vsa.args map (a => AVectorNeg(a))).simplify
     }
     else {
       AVectorNeg(sa)
@@ -272,6 +294,10 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
       val vsa = sa.asInstanceOf[AVectorNeg]
       AVectorScaleConstant(vsa.arg, -scale)
     }
+    else if(sa.isInstanceOf[AVectorCat]) {
+      val vsa = sa.asInstanceOf[AVectorCat]
+      AVectorCat(vsa.args map (a => AVectorScaleConstant(a, scale))).simplify
+    }
     else {
       AVectorScaleConstant(sa, scale)
     }
@@ -313,6 +339,9 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
       else if(a.isInstanceOf[AVectorCat]) {
         a.asInstanceOf[AVectorCat].args
       }
+      else if((a.isInstanceOf[AVectorZero])&&(a.asInstanceOf[AVectorZero].size.isConst)) {
+        for(i <- 0 until a.asInstanceOf[AVectorZero].size.asConst) yield AVectorZero(input, IRPoly.const(1, arity))
+      }
       else {
         Seq(a)
       }
@@ -342,7 +371,8 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
         salf(0)
       }
       else {
-        AVectorCat(salf)
+        //here, we put saf instead of salf so that we can open ourselves up to additional transformations
+        AVectorCat(saf)
       }
     }
   }
