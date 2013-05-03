@@ -12,9 +12,11 @@ object AVector {
     AVectorScaleConstant(AVectorOne(input), c)
   }
 
-  val arityOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, ArityOp], AVector]()
-  val inputOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, InputOp], AVector]()
-  val simplifyMemoMap = new scala.collection.mutable.HashMap[AVector, AVector]()
+  val internMap = new scala.collection.mutable.HashMap[AVector, AVector]()
+
+  // val arityOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, ArityOp], AVector]()
+  // val inputOpMemoMap = new scala.collection.mutable.HashMap[Tuple2[AVector, InputOp], AVector]()
+  // val simplifyMemoMap = new scala.collection.mutable.HashMap[AVector, AVector]()
 }
 
 trait AVector extends HasInput[AVector] {
@@ -30,6 +32,8 @@ trait AVector extends HasInput[AVector] {
   //     case u: AVector => (cachedHashCode == u.cachedHashCode)&&(x.getClass == this.getClass)
   //     case _ => false
   //   })
+
+  lazy val intern: AVector = AVector.internMap.getOrElseUpdate(this, this)
 
   def arityVerify() {
     if(size.arity != arity) throw new IRValidationException()
@@ -47,28 +51,23 @@ trait AVector extends HasInput[AVector] {
   def is0: Boolean
   def isPure: Boolean
 
-  final def simplify: AVector = {
-    val rv = AVector.simplifyMemoMap.getOrElseUpdate(this, this.simplifySub)
-    if(rv.size != size) {
-      println(this.getClass.getName)
-      println(rv.size)
-      println(size)
-      println(rv)
-      println(this)
-      throw new IRValidationException()
-    }
+  lazy val simplified: AVector = {
+    val rv = simplifySub.intern
+    if(rv.size != size) throw new IRValidationException()
     rv
   }
+  final def simplify: AVector = this.intern.simplified
 
   def simplifySub: AVector
 
+  lazy val aOpMemoMap = new scala.collection.mutable.HashMap[ArityOp, AVector]()
   final def arityOp(op: ArityOp): AVector = {
-    AVector.arityOpMemoMap.getOrElseUpdate((this, op), arityOpSub(op))
+    intern.aOpMemoMap.getOrElseUpdate(op, arityOpSub(op).intern)
   }
+
+  lazy val iOpMemoMap = new scala.collection.mutable.HashMap[InputOp, AVector]()
   final def inputOp(op: InputOp): AVector = {
-    val rv = AVector.inputOpMemoMap.getOrElseUpdate((this, op), inputOpSub(op))
-    if(rv.size != size) throw new IRValidationException()
-    rv
+    intern.iOpMemoMap.getOrElseUpdate(op, inputOpSub(op).intern)
   }
 
   def arityOpSub(op: ArityOp): AVector
@@ -76,10 +75,10 @@ trait AVector extends HasInput[AVector] {
 
   private lazy val invariantAtSeq: Seq[Boolean] = 
     for(i <- 0 until arity) yield invariantAtSub(i)
-  override def invariantAt(idx: Int): Boolean = invariantAtSeq(idx)
+  override def invariantAt(idx: Int): Boolean = intern.invariantAtSeq(idx)
   private lazy val memoryInvariantAtSeq: Seq[Boolean] = 
     for(i <- 0 until input.memory.size) yield memoryInvariantAtSub(i)
-  override def memoryInvariantAt(idx: Int): Boolean = memoryInvariantAtSeq(idx)
+  override def memoryInvariantAt(idx: Int): Boolean = intern.memoryInvariantAtSeq(idx)
 
   def invariantAtSub(idx: Int): Boolean
   def memoryInvariantAtSub(idx: Int): Boolean
