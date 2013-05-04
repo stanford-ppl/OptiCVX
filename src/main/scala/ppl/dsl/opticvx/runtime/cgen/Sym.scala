@@ -98,3 +98,27 @@ object DoubleLikeDoubleSym {
   implicit def doublelikedoublehackimpl(t: DoubleSym) = new DoubleLikeDoubleHack(t)
 }
 
+
+trait VectorSym {
+  def writeTo(dst: DstWritable): String
+}
+trait VectorSymIndexable extends VectorSym {
+  def indexAt(idx: IntSym): DoubleSym
+  def size: IntSym
+  def writeTo(dst: DstWritable): String = {
+    val i = IntSymD("i")
+    "for(int i = 0; i < " + size.name + "; i++) " + dst.writeAt(i, indexAt(i)) + ";"
+  }
+}
+class VectorSymScalar(data: DoubleSym) extends VectorSymIndexable {
+  def indexAt(idx: IntSym): DoubleSym = data
+  def size: IntSym = IntSymL(1)
+  override def writeTo(dst: DstWritable): String = dst.writeAt(IntSymL(0), data) + ";"
+}
+class VectorSymNamed(val name: String, val size: IntSym) extends Sym with VectorSymIndexable {
+  def indexAt(idx: IntSym): DoubleSym = DoubleSymD(Sym.subst("$x[$i]", Seq("x" -> this, "i" -> idx)))
+}
+trait DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym): String
+}
+

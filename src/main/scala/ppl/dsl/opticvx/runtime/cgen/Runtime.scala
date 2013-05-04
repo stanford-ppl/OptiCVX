@@ -11,12 +11,6 @@ import java.io._
 import java.lang.Runtime
 
 
-class FlatSym(val name: String) extends Sym
-
-class VectorSym(val vss: String) {
-  def at(idx: IntSym) = new FlatSym(vss.replace("$", idx.name))
-}
-class VectorArraySym(val name: String) extends VectorSym(name + "[$]") with Sym
 
 /*
 case class DstOp(val dstscale: String, val srcscale: String) {
@@ -53,10 +47,15 @@ case class DstOp(val dstscale: String, val srcscale: String) {
 object SolverRuntimeCGen extends SolverRuntime {
   def compile(vix: AVector): SolverCompiled = {
     val v = vix.simplify
-    (new SolverAnalysisCGen(null, null)).analyze(v)
+    val analysis = new SolverAnalysisCGen(null, null)
+    analysis.analyze(v).addNeedWrite
     val params: Seq[IntSym] = for(i <- 0 until v.arity) yield IntSymD("param" + i.toString)
-    val compiler = new SolverCompilerCGen(params, Seq(), null, null)
+    val compiler = new SolverCompilerCGen(params, Seq(), analysis, null, null)
     val result = compiler.eval(v)
+    compiler.emit(result.writeTo(new DstWritable {
+      def writeAt(idx: IntSym, src: DoubleSym): String = 
+        Sym.subst("output[$i] = $src", Seq("i" -> idx, "src" -> src))
+      }))
     var code = """
 #include <math.h>
 #include <string.h>
@@ -80,7 +79,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     }
     code += "\n"
     code += compiler.codeacc
-    code += "\nfor(int i = 0; i < " + v.size.eval(params)(IntLikeIntSym).name + "; i++) output[i] = " + result.at(IntSymD("i")).name + ";\n"
+    //code += "\nfor(int i = 0; i < " + v.size.eval(params)(IntLikeIntSym).name + "; i++) output[i] = " + result.at(IntSymD("i")).name + ";\n"
     code += "\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
     
     code += "static int variable_size(int* params) {\n"
@@ -230,6 +229,17 @@ class SolverAnalysisEntryInfo extends SolverAnalysisEntry {
   def addNeedIndexLoop {
     indexesNeeded += 100 //a large number
   }
+  def hint: SolverAnalysisHint = {
+    if((writesNeeded <= 1)&&(indexesNeeded == 0)) {
+      SolverAnalysisHintWritable()
+    }
+    else if ((writesNeeded + indexesNeeded == 1)) {
+      SolverAnalysisHintIndexable()
+    }
+    else {
+      SolverAnalysisHintArray()
+    }
+  }
 }
 class SolverAnalysisEntryLoop(parent: SolverAnalysisEntry) extends SolverAnalysisEntry {
   def addNeedWrite {
@@ -245,6 +255,10 @@ class SolverAnalysisEntryLoop(parent: SolverAnalysisEntry) extends SolverAnalysi
     parent.addNeedIndexLoop
   }
 }
+trait SolverAnalysisHint
+case class SolverAnalysisHintWritable() extends SolverAnalysisHint
+case class SolverAnalysisHintIndexable() extends SolverAnalysisHint
+case class SolverAnalysisHintArray() extends SolverAnalysisHint
 
 class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: SolverAnalysisCGen) {
   val infocache = new scala.collection.mutable.HashMap[AVector, SolverAnalysisEntryInfo]
@@ -352,7 +366,7 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
   }
 }
 
-class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_promote: SolverCompilerCGen, inherit_push: SolverCompilerCGen) {
+class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: SolverAnalysisCGen, inherit_promote: SolverCompilerCGen, inherit_push: SolverCompilerCGen) {
   val memocache = new scala.collection.mutable.HashMap[AVector, VectorSym]()
 
   def memolookup(v: AVector): VectorSym = {
@@ -386,21 +400,21 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
   }
 
   private var vectorsym_ni: Int = 0
-  private def nextvector: VectorArraySym = {
+  private def nextvector(size: IntSym): VectorSymNamed = {
     if(inherit_promote != null) {
-      inherit_promote.nextvector
+      inherit_promote.nextvector(size)
     }
     else if(inherit_push != null) {
-      inherit_push.nextvector
+      inherit_push.nextvector(size)
     }
     else {
       vectorsym_ni += 1
-      new VectorArraySym("x" + vectorsym_ni.toString)
+      new VectorSymNamed("x" + vectorsym_ni.toString, size)
     }
   }
 
   private var intsym_ni: Int = 0
-  private def nextint: IntSym = {
+  private def nextint: IntSymD = {
     if(inherit_promote != null) {
       inherit_promote.nextint
     }
@@ -413,8 +427,22 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
     }
   }
 
+  private var doublesym_ni: Int = 0
+  private def nextdouble: DoubleSymD = {
+    if(inherit_promote != null) {
+      inherit_promote.nextdouble
+    }
+    else if(inherit_push != null) {
+      inherit_push.nextdouble
+    }
+    else {
+      doublesym_ni += 1
+      DoubleSymD("d" + doublesym_ni.toString)
+    }
+  }
+
   var codeacc: String = ""
-  private def emit(code: String, repls: Tuple2[String, Sym]*) {
+  def emit(code: String, repls: Tuple2[String, Sym]*) {
     codeacc += Sym.subst(code.trim, Seq(repls:_*)) + "\n"
   }
 
@@ -436,24 +464,41 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
       return memo
     }
 
+    import DoubleLikeDoubleSym._
+
+    val ainfo: SolverAnalysisHint = analysis.infocache(v).hint
     val rv: VectorSym = v match {
-      case AVectorZero(input, size) =>
-        new VectorSym("0.0")
+      case AVectorZero(input, sz) => new VectorSymIndexable {
+        def indexAt(idx: IntSym): DoubleSym = DoubleSymL(0.0)
+        val size: IntSym = sz.eval(params)(IntLikeIntSym)
+      }
       case AVectorConst(input, data) => {
         if(data.length == 1) {
-          new VectorSym(data(0).toString)
+          new VectorSymScalar(DoubleSymL(data(0)))
         }
         else {
-          val v = nextvector
+          val v = nextvector(IntSymL(data.length))
           emit("double $v[$size] = { " + data.drop(1).foldLeft(data(0).toString)((a, u) => a + ", " + u.toString) + " };",
-            "v" -> v, "size" -> IntLikeIntSym.int2T(data.length))
+            "v" -> v, "size" -> IntSymL(data.length))
           v
         }
       }
       case AVectorSum(args) => {
         val avs: Seq[VectorSym] = args map (a => eval(a))
-        new VectorSym("(" + avs.drop(1).foldLeft(avs(0).vss) ((a,u) => a + " + " + u.vss) + ")")
+        if(avs forall (a => a.isInstanceOf[VectorSymIndexable])) {
+          val avsi: Seq[VectorSymIndexable] = avs map (a => a.asInstanceOf[VectorSymIndexable])
+          new VectorSymIndexable {
+            def indexAt(idx: IntSym): DoubleSym = avsi.foldLeft(DoubleSymL(0.0): DoubleSym)((a,b) => a + b.indexAt(idx))
+            def size: IntSym = avsi(0).size
+          }
+        }
+        else {
+          new VectorSym {
+            def writeTo(dst: DstWritable): String
+          }
+        }
       }
+      /*
       case AVectorNeg(arg) => {
         val vs = eval(arg)
         new VectorSym("(-" + vs.vss + ")")
@@ -658,6 +703,7 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
         this.contains_converge = true
         state
       }
+      */
       case _ =>
         throw new IRValidationException()
     }
