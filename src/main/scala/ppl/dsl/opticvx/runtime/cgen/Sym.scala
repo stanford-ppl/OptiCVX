@@ -11,6 +11,14 @@ import java.io._
 import java.lang.Runtime
 
 
+object Sym {
+  def subst(code: String, repls: Seq[Tuple2[String, Sym]]): String = {
+    val rv = repls.foldLeft(code)((s, r) => s.replace("$" + r._1, r._2.name))
+    if(rv.contains("$")) throw new IRValidationException()
+    rv
+  }
+}
+
 trait Sym {
   def name: String
 }

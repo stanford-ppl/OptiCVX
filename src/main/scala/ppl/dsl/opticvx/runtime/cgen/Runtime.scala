@@ -415,15 +415,7 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], inherit_pr
 
   var codeacc: String = ""
   private def emit(code: String, repls: Tuple2[String, Sym]*) {
-    var accv = code.trim
-    for(r <- repls) {
-      accv = accv.replace("$" + r._1, r._2.name)
-    }
-    if(accv.contains("$")) {
-     println(accv)
-     throw new IRValidationException()
-    }
-    codeacc += accv + "\n"
+    codeacc += Sym.subst(code.trim, Seq(repls:_*)) + "\n"
   }
 
     
