@@ -53,6 +53,7 @@ case class DstOp(val dstscale: String, val srcscale: String) {
 object SolverRuntimeCGen extends SolverRuntime {
   def compile(vix: AVector): SolverCompiled = {
     val v = vix.simplify
+    (new SolverAnalysisCGen(null, null)).analyze(v)
     val params: Seq[IntSym] = for(i <- 0 until v.arity) yield IntSymD("param" + i.toString)
     val compiler = new SolverCompilerCGen(params, Seq(), null, null)
     val result = compiler.eval(v)
@@ -201,6 +202,153 @@ class SolverCompiledCGen(val inputdesc: InputDesc, val vvsize: IRPoly) extends S
     bfreader.close()
     freader.close()
     SolverResult(vv, iterct, timer)
+  }
+}
+
+trait SolverAnalysisEntry {
+  // another op needs this, but in write mode
+  def addNeedWrite: Unit
+  // another op needs this and it needs it indexed
+  def addNeedIndex: Unit
+  // an op inside a loop needs this in write mode
+  def addNeedWriteLoop: Unit
+  // an op inside a loop needs this indexed
+  def addNeedIndexLoop: Unit
+}
+class SolverAnalysisEntryInfo extends SolverAnalysisEntry {
+  private var writesNeeded: Int = 0
+  private var indexesNeeded: Int = 0
+  def addNeedWrite {
+    writesNeeded += 1
+  }
+  def addNeedIndex {
+    indexesNeeded += 1
+  }
+  def addNeedWriteLoop {
+    writesNeeded += 100 //a large number
+  }
+  def addNeedIndexLoop {
+    indexesNeeded += 100 //a large number
+  }
+}
+class SolverAnalysisEntryLoop(parent: SolverAnalysisEntry) extends SolverAnalysisEntry {
+  def addNeedWrite {
+    parent.addNeedWriteLoop
+  }
+  def addNeedIndex {
+    parent.addNeedIndexLoop
+  }
+  def addNeedWriteLoop {
+    parent.addNeedWriteLoop
+  }
+  def addNeedIndexLoop {
+    parent.addNeedIndexLoop
+  }
+}
+
+class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: SolverAnalysisCGen) {
+  val infocache = new scala.collection.mutable.HashMap[AVector, SolverAnalysisEntryInfo]
+  val promoteSubs = new scala.collection.mutable.HashMap[AVector, SolverAnalysisCGen]
+  val pushSubs = new scala.collection.mutable.HashMap[AVector, SolverAnalysisCGen]
+
+  def analyze(v: AVector): SolverAnalysisEntry = {
+    if(infocache.contains(v)) return infocache(v)
+
+    if(inherit_promote != null) {
+      if(v.invariantAt(v.arity - 1)) {
+        val dv = v.demote
+        return new SolverAnalysisEntryLoop(inherit_promote.analyze(dv))
+      }
+    }
+    else if(inherit_push != null) {
+      if(v.memoryInvariantAt(v.input.memory.length - 1)) {
+        val dv = v.popMemory
+        return new SolverAnalysisEntryLoop(inherit_push.analyze(dv))
+      }
+    }
+
+    v match {
+      case AVectorZero(input, size) => 
+      case AVectorConst(input, data) => 
+      case AVectorSum(args) => {
+        for(a <- args) {
+          analyze(a).addNeedWrite
+        }
+      }
+      case AVectorNeg(arg) => {
+        analyze(arg).addNeedWrite
+      }
+      case AVectorScaleConstant(arg, scale) => {
+        analyze(arg).addNeedWrite
+      }
+      case AVectorCat(args) => {
+        for(a <- args) {
+          analyze(a).addNeedWrite
+        }
+      }
+      case AVectorCatFor(len, arg) => {
+        val ev = new SolverAnalysisCGen(this, null)
+        ev.analyze(arg).addNeedWrite
+        promoteSubs += (v -> ev)
+      }
+      case AVectorSlice(arg, at, size) => {
+        analyze(arg).addNeedIndex
+      }
+      case AVectorSumFor(len, arg) => {
+        val ev = new SolverAnalysisCGen(this, null)
+        ev.analyze(arg).addNeedWrite
+        promoteSubs += (v -> ev)
+      }
+      case AVectorMpyInput(arg, iidx, sidx) => {
+        analyze(arg).addNeedIndexLoop
+      }
+      case AVectorMpyInputT(arg, iidx, sidx) => {
+        analyze(arg).addNeedIndexLoop
+      }
+      case AVectorRead(input, iidx) => 
+      case AVectorDot(arg1, arg2) => {
+        analyze(arg1).addNeedIndex
+        analyze(arg2).addNeedIndex
+      }
+      case AVectorMpy(arg, scale) => {
+        analyze(arg).addNeedWrite
+        analyze(scale).addNeedIndexLoop
+      }
+      case AVectorDiv(arg, scale) => {
+        analyze(arg).addNeedWrite
+        analyze(scale).addNeedIndexLoop
+      }
+      case AVectorSqrt(arg) => {
+        analyze(arg).addNeedWrite
+      }
+      case AVectorNorm2(arg) => {
+        analyze(arg).addNeedWrite
+      }
+      case AVectorNormInf(arg) => {
+        analyze(arg).addNeedWrite
+      }
+      case AVectorMax(arg1, arg2) => {
+        analyze(arg1).addNeedWrite
+        analyze(arg2).addNeedWrite
+      }
+      case AVectorMin(arg1, arg2) => {
+        analyze(arg1).addNeedWrite
+        analyze(arg2).addNeedWrite
+      }
+      case AVectorTolerance(input) => 
+      case AVectorConverge(arg, cond, body, itermax) => {
+        analyze(arg).addNeedWrite
+        val ev = new SolverAnalysisCGen(null, this)
+        ev.analyze(body).addNeedWrite
+        ev.analyze(cond).addNeedIndex
+        promoteSubs += (v -> ev)
+      }
+      case _ =>
+        throw new IRValidationException()
+    }
+
+    infocache += (v -> new SolverAnalysisEntryInfo())
+    return infocache(v)
   }
 }
 
