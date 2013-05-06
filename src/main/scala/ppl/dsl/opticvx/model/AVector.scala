@@ -198,7 +198,7 @@ case class AVectorSum(val args: Seq[AVector]) extends AVector {
     args forall (a => a.memoryInvariantAt(idx))
   }
 
-  override def toString: String = "sum(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
+  override def toString: String = "sum(...)"
 }
 
 case class AVectorNeg(val arg: AVector) extends AVector {
@@ -242,7 +242,7 @@ case class AVectorNeg(val arg: AVector) extends AVector {
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "neg(" + arg.toString + ")"
+  override def toString: String = "neg(...)"
 }
 
 case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVector {
@@ -295,7 +295,7 @@ case class AVectorScaleConstant(val arg: AVector, val scale: Double) extends AVe
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "scale(" + arg.toString + ", " + scale.toString + ")"
+  override def toString: String = "scale(...)"
 }
 
 object AVectorCat {
@@ -372,7 +372,7 @@ case class AVectorCat(val args: Seq[AVector]) extends AVector {
     args forall (a => a.memoryInvariantAt(idx))
   }
 
-  override def toString: String = "cat(" + args.drop(1).foldLeft(args(0).toString)((a,x) => a + ", " + x.toString) + ")"
+  override def toString: String = "cat(...)"
 }
 
 case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
@@ -409,7 +409,7 @@ case class AVectorCatFor(val len: IRPoly, val arg: AVector) extends AVector {
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && len.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "catfor(" + len.toString + ": " + arg.toString + ")"
+  override def toString: String = "catfor(...)"
 }
 
 case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) extends AVector {
@@ -449,7 +449,7 @@ case class AVectorSlice(val arg: AVector, val at: IRPoly, val size: IRPoly) exte
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && at.invariantAt(idx) && size.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "slice(" + arg.toString + ", " + at.toString + ", " + size.toString + ")"
+  override def toString: String = "slice(...)"
 }
 
 case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
@@ -483,7 +483,7 @@ case class AVectorSumFor(val len: IRPoly, val arg: AVector) extends AVector {
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && len.invariantAt(idx)
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "sumfor(" + len.toString + ": " + arg.toString + ")"
+  override def toString: String = "sumfor(...)"
 }
 
 case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
@@ -520,7 +520,7 @@ case class AVectorMpyInput(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && (sidx forall (a => a.invariantAt(idx)))
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "mpyinput(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
+  override def toString: String = "mpyinput(...)"
 }
 
 case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPoly]) extends AVector {
@@ -557,7 +557,7 @@ case class AVectorMpyInputT(val arg: AVector, val iidx: Int, val sidx: Seq[IRPol
   def invariantAtSub(idx: Int): Boolean = arg.invariantAt(idx) && (sidx forall (a => a.invariantAt(idx)))
   def memoryInvariantAtSub(idx: Int): Boolean = arg.memoryInvariantAt(idx)
 
-  override def toString: String = "mpyinputT(" + arg.toString + ", " + iidx.toString + ", " + sidx.toString + ")"
+  override def toString: String = "mpyinputT(...)"
 }
 
 case class AVectorRead(val input: InputDesc, val iidx: Int) extends AVector {

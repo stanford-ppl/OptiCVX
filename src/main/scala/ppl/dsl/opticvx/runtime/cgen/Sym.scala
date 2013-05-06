@@ -23,6 +23,8 @@ trait Sym {
   def name: String
 }
 
+case class FlatSym(val name: String) extends Sym
+
 trait IntSym extends Sym
 case class IntSymD(val name: String) extends IntSym
 case class IntSymL(val i: Int) extends IntSym {
@@ -84,7 +86,7 @@ object DoubleLikeDoubleSym {
     case (DoubleSymL(0.0), _) => DoubleSymL(0.0)
     case (_, DoubleSymL(0.0)) => throw new Exception("symbol divide by zero")
     case (_, DoubleSymL(1.0)) => x
-    case _ => DoubleSymD("(" + x.name + " * " + y.name + ")")
+    case _ => DoubleSymD("(" + x.name + " / " + y.name + ")")
   }
   implicit def double2T(x: Double): DoubleSym = DoubleSymL(x)
 
@@ -107,18 +109,55 @@ trait VectorSymIndexable extends VectorSym {
   def size: IntSym
   def writeTo(dst: DstWritable): String = {
     val i = IntSymD("i")
-    "for(int i = 0; i < " + size.name + "; i++) " + dst.writeAt(i, indexAt(i)) + ";"
+    "for(int i = 0; i < " + size.name + "; i++) " + dst.writeAt(i, indexAt(i)) + ";\n"
   }
 }
 class VectorSymScalar(data: DoubleSym) extends VectorSymIndexable {
   def indexAt(idx: IntSym): DoubleSym = data
   def size: IntSym = IntSymL(1)
-  override def writeTo(dst: DstWritable): String = dst.writeAt(IntSymL(0), data) + ";"
+  override def writeTo(dst: DstWritable): String = dst.writeAt(IntSymL(0), data) + ";\n"
 }
-class VectorSymNamed(val name: String, val size: IntSym) extends Sym with VectorSymIndexable {
+trait VectorSymLM extends VectorSymIndexable
+class VectorSymNamed(val name: String, val size: IntSym) extends Sym with VectorSymLM {
   def indexAt(idx: IntSym): DoubleSym = DoubleSymD(Sym.subst("$x[$i]", Seq("x" -> this, "i" -> idx)))
+}
+class VectorSymNamedScalar(val name: String) extends Sym with VectorSymLM {
+  def indexAt(idx: IntSym): DoubleSym = DoubleSymD(name)
+  val size: IntSym = IntSymL(1)
 }
 trait DstWritable {
   def writeAt(idx: IntSym, src: DoubleSym): String
+  // this is the dual of this DstWritable that accumulates into the location
+  def accumulator: DstWritable
 }
+class DstWritableArray(val name: String) extends DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym) = name + "[" + idx.name + "] = " + src.name
+  def accumulator: DstWritable = new DstWritableArrayAcc(name)
+}
+class DstWritableArrayAcc(val name: String) extends DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym) = name + "[" + idx.name + "] += " + src.name
+  def accumulator: DstWritable = this
+}
+class DstWritableScaled(val parent: DstWritable, val scale: DoubleSym) extends DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym): String = {
+    import DoubleLikeDoubleSym._
+    parent.writeAt(idx, src * scale)
+  }
+  def accumulator: DstWritable = new DstWritableScaled(parent.accumulator, scale)
+}
+class DstWritableScaledInv(val parent: DstWritable, val scale: DoubleSym) extends DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym): String = {
+    import DoubleLikeDoubleSym._
+    parent.writeAt(idx, src / scale)
+  }
+  def accumulator: DstWritable = new DstWritableScaledInv(parent.accumulator, scale)
+}
+class DstWritableOffset(val parent: DstWritable, val offset: IntSym) extends DstWritable {
+  def writeAt(idx: IntSym, src: DoubleSym): String = {
+    import IntLikeIntSym._
+    parent.writeAt(idx + offset, src)
+  }
+  def accumulator: DstWritable = new DstWritableOffset(parent.accumulator, offset)
+}
+
 

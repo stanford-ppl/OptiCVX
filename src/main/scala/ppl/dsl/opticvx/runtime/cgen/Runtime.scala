@@ -52,10 +52,7 @@ object SolverRuntimeCGen extends SolverRuntime {
     val params: Seq[IntSym] = for(i <- 0 until v.arity) yield IntSymD("param" + i.toString)
     val compiler = new SolverCompilerCGen(params, Seq(), analysis, null, null)
     val result = compiler.eval(v)
-    compiler.emit(result.writeTo(new DstWritable {
-      def writeAt(idx: IntSym, src: DoubleSym): String = 
-        Sym.subst("output[$i] = $src", Seq("i" -> idx, "src" -> src))
-      }))
+    compiler.emit(result.writeTo(new DstWritableArray("output")))
     var code = """
 #include <math.h>
 #include <string.h>
@@ -333,21 +330,21 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
         analyze(scale).addNeedIndexLoop
       }
       case AVectorSqrt(arg) => {
-        analyze(arg).addNeedWrite
+        analyze(arg).addNeedIndex
       }
       case AVectorNorm2(arg) => {
-        analyze(arg).addNeedWrite
+        analyze(arg).addNeedIndex
       }
       case AVectorNormInf(arg) => {
-        analyze(arg).addNeedWrite
+        analyze(arg).addNeedIndex
       }
       case AVectorMax(arg1, arg2) => {
-        analyze(arg1).addNeedWrite
-        analyze(arg2).addNeedWrite
+        analyze(arg1).addNeedIndex
+        analyze(arg2).addNeedIndex
       }
       case AVectorMin(arg1, arg2) => {
-        analyze(arg1).addNeedWrite
-        analyze(arg2).addNeedWrite
+        analyze(arg1).addNeedIndex
+        analyze(arg2).addNeedIndex
       }
       case AVectorTolerance(input) => 
       case AVectorConverge(arg, cond, body, itermax) => {
@@ -355,7 +352,7 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
         val ev = new SolverAnalysisCGen(null, this)
         ev.analyze(body).addNeedWrite
         ev.analyze(cond).addNeedIndex
-        promoteSubs += (v -> ev)
+        pushSubs += (v -> ev)
       }
       case _ =>
         throw new IRValidationException()
@@ -413,6 +410,20 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
     }
   }
 
+  private var scalarsym_ni: Int = 0
+  private def nextscalar: VectorSymNamedScalar = {
+    if(inherit_promote != null) {
+      inherit_promote.nextscalar
+    }
+    else if(inherit_push != null) {
+      inherit_push.nextscalar
+    }
+    else {
+      scalarsym_ni += 1
+      new VectorSymNamedScalar("z" + scalarsym_ni.toString)
+    }
+  }
+
   private var intsym_ni: Int = 0
   private def nextint: IntSymD = {
     if(inherit_promote != null) {
@@ -464,13 +475,14 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
       return memo
     }
 
+    implicit val ilisimpl = IntLikeIntSym
+    import IntLikeIntSym._
     import DoubleLikeDoubleSym._
 
-    val ainfo: SolverAnalysisHint = analysis.infocache(v).hint
     val rv: VectorSym = v match {
       case AVectorZero(input, sz) => new VectorSymIndexable {
         def indexAt(idx: IntSym): DoubleSym = DoubleSymL(0.0)
-        val size: IntSym = sz.eval(params)(IntLikeIntSym)
+        val size: IntSym = sz.eval(params)
       }
       case AVectorConst(input, data) => {
         if(data.length == 1) {
@@ -494,84 +506,114 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
         }
         else {
           new VectorSym {
-            def writeTo(dst: DstWritable): String
+            def writeTo(dst: DstWritable): String = {
+              avs.drop(1).foldLeft(avs(0).writeTo(dst))((a, u) => a + u.writeTo(dst.accumulator))
+            }
           }
         }
       }
-      /*
       case AVectorNeg(arg) => {
-        val vs = eval(arg)
-        new VectorSym("(-" + vs.vss + ")")
+        val avv = eval(arg)
+        avv match {
+          case av: VectorSymIndexable => {
+            new VectorSymIndexable {
+              def indexAt(idx: IntSym): DoubleSym = -av.indexAt(idx)
+              def size: IntSym = av.size
+            }
+          }
+          case _ => {
+            new VectorSym {
+              def writeTo(dst: DstWritable): String = {
+                avv.writeTo(new DstWritableScaled(dst, -1))
+              }
+            }
+          }
+        }
       }
       case AVectorScaleConstant(arg, scale) =>{
-        val vs = eval(arg)
-        new VectorSym("(" + vs.vss + " * " + scale.toString + ")")
+        val avv = eval(arg)
+        avv match {
+          case av: VectorSymIndexable => {
+            new VectorSymIndexable {
+              def indexAt(idx: IntSym): DoubleSym = av.indexAt(idx) * scale
+              def size: IntSym = av.size
+            }
+          }
+          case _ => {
+            new VectorSym {
+              def writeTo(dst: DstWritable): String = {
+                avv.writeTo(new DstWritableScaled(dst, scale))
+              }
+            }
+          }
+        }
       }
       case AVectorCat(args) => {
         val avs: Seq[VectorSym] = args map (a => eval(a))
-        val nv = nextvector
-        emit("double $nv[$size];", "nv" -> nv, "size" -> v.size.eval(params)(IntLikeIntSym))
-        emit("{")
-        emit("int i = 0; int j;")
-        for (k <- 0 until args.length) {
-          emit("for(j = 0; j < $asize; i++, j++) $nv[i] = $aj;",
-            "nv" -> nv,
-            "asize" -> args(k).size.eval(params)(IntLikeIntSym), 
-            "aj" -> avs(k).at(IntSymD("j")))
+        new VectorSym {
+          def writeTo(dst: DstWritable): String = {
+            var rv: String = ""
+            var offset: IRPoly = IRPoly.const(0, v.arity)
+            for(i <- 0 until args.length) {
+              rv += avs(i).writeTo(new DstWritableOffset(dst, offset.eval(params)))
+              offset += args(i).size
+            }
+            rv
+          }
         }
-        emit("}")
-        nv
       }
       case AVectorCatFor(len, arg) => {
-        val osize = v.size.eval(params)(IntLikeIntSym)
-        val nv = nextvector
         val i = nextint
-        val j = nextint
-        val k = nextint
-        val ev = new SolverCompilerCGen(params :+ i, memory, this, null)
+        val ev = new SolverCompilerCGen(params :+ i, memory, analysis.promoteSubs(v), this, null)
         val ilv = ev.eval(arg)
-        emit("double $nv[$osize];", "nv" -> nv, "osize" -> osize)
-        emit("for(int $i = 0, $j = 0; $i < $len; $i++) {",
-          "i" -> i, "j" -> j, "len" -> len.eval(params)(IntLikeIntSym))
-        emit(ev.codeacc)
-        emit("for(int $k = 0; $k < $msize; $j++, $k++) $nv[$j] = $ilvk;",
-          "k" -> k, "j" -> j, "msize" -> arg.size.eval(params :+ i)(IntLikeIntSym), "nv" -> nv, "ilvk" -> ilv.at(k))
-        emit("}")
-        nv
+        val elen = len.eval(params)
+        val offset = arg.size.sum(v.arity).eval(params :+ i)
+        new VectorSym {
+          def writeTo(dst: DstWritable): String = {
+            Sym.subst("for(int $i = 0; $i < $len; $i++) {\n", Seq("i" -> i, "len" -> elen)) +
+              ev.codeacc +
+              ilv.writeTo(new DstWritableOffset(dst, offset)) +
+              "}\n"
+          }
+        }
       }
       case AVectorSlice(arg, at, size) => {
-        val vs = eval(arg)
-        val evat = at.eval(params)(IntLikeIntSym)
-        new VectorSym(vs.at(IntLikeIntSym.add(IntSymD("$"), evat)).name)
+        val vs = eval(arg).asInstanceOf[VectorSymIndexable]
+        val osize = size.eval(params)
+        new VectorSymIndexable {
+          def indexAt(idx: IntSym): DoubleSym = vs.indexAt(idx + at.eval(params))
+          def size: IntSym = osize
+        }
       }
       case AVectorSumFor(len, arg) => {
-        val osize = v.size.eval(params)(IntLikeIntSym)
-        val nv = nextvector
         val i = nextint
-        val j = nextint
-        val k = nextint
-        val ev = new SolverCompilerCGen(params :+ j, memory, this, null)
+        val ev = new SolverCompilerCGen(params :+ i, memory, analysis.promoteSubs(v), this, null)
+        val osize = v.size.eval(params)(IntLikeIntSym)
         val ilv = ev.eval(arg)
-        emit("double $nv[$osize];", "nv" -> nv, "osize" -> osize)
-        emit("for(int $i = 0; $i < $osize; $i++) $nv[$i] = 0.0;", "nv" -> nv, "i" -> i, "osize" -> osize)
-        emit("for(int $j = 0; $j < $len; $j++) {",
-          "j" -> j, "len" -> len.eval(params)(IntLikeIntSym))
-        emit(ev.codeacc)
-        emit("for(int $k = 0; $k < $osize; $k++) $nv[$k] += $ilvk;",
-          "k" -> k, "osize" -> osize, "nv" -> nv, "ilvk" -> ilv.at(k))
-        emit("}")
-        nv
+        val elen = len.eval(params)
+        new VectorSym {
+          def writeTo(dst: DstWritable): String = {
+            Sym.subst("for(int i = 0; i < $len; i++) ", Seq("len" -> elen)) + dst.writeAt(IntSymD("i"), DoubleSymL(0.0)) + ";\n" +
+              Sym.subst("for(int $i = 0; $i < $len; $i++) {\n", Seq("i" -> i, "len" -> elen)) +
+              ev.codeacc +
+              ilv.writeTo(dst.accumulator) + 
+              "}\n"
+          }
+        }
       }
       case AVectorMpyInput(arg, iidx, sidx) => {
-        val vs = eval(arg)
+        val vs = eval(arg).asInstanceOf[VectorSymIndexable]
         val mstr = new FlatSym(getInput(iidx, sidx))
+        val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)
         if(arg.size == IRPoly.const(1, arg.arity)) {
-          new VectorSym("(" + mstr.name + "[$] * " + vs.at(IntSymL(0)).name + ")")
+          new VectorSymIndexable {
+            def indexAt(idx: IntSym): DoubleSym = vs.indexAt(IntSymL(0)) * DoubleSymD(mstr.name + "[" + idx.name + "]")
+            def size: IntSym = osize
+          }
         }
         else {
-          val nv = nextvector
-          val isize = arg.size.eval(params)(IntLikeIntSym)
-          val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+          val nv = nextvector(osize)
+          val isize = arg.size.eval(params)
           emit("""
             double $nv[$osize];
             for(int i = 0; i < $osize; i++) {
@@ -581,20 +623,23 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
               }
             }
             """,
-            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(IntSymD("j")))
+            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.indexAt(IntSymD("j")))
           nv
         }
       }
       case AVectorMpyInputT(arg, iidx, sidx) => {
-        val vs = eval(arg)
+        val vs = eval(arg).asInstanceOf[VectorSymIndexable]
         val mstr = new FlatSym(getInput(iidx, sidx))
+        val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)
         if(arg.size == IRPoly.const(1, arg.arity)) {
-          new VectorSym("(" + mstr.name + "[$] * " + vs.at(IntSymL(0)).name + ")")
+          new VectorSymIndexable {
+            def indexAt(idx: IntSym): DoubleSym = vs.indexAt(IntSymL(0)) * DoubleSymD(mstr.name + "[" + idx.name + "]")
+            def size: IntSym = osize
+          }
         }
         else {
-          val nv = nextvector
-          val isize = arg.size.eval(params)(IntLikeIntSym)
-          val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)(IntLikeIntSym)
+          val nv = nextvector(osize)
+          val isize = arg.size.eval(params)
           emit("""
             double $nv[$osize];
             for(int i = 0; i < $osize; i++) $nv[i] = 0.0;
@@ -604,113 +649,163 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
               }
             }
             """,
-            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(IntSymD("j")))
+            "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.indexAt(IntSymD("j")))
           nv
         }
-        // emit("""
-        //   double $nv[$osize];
-        //   for(int i = 0; i < $osize; i++) {
-        //     $nv[i] = 0.0;
-        //     for(int j = 0; j < $isize; j++) {
-        //       $nv[i] += $m[j*$osize+i] * $xj;
-        //     }
-        //   }
-        //   """,
-        //   "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.at(IntSymD("j")))
       }
       case AVectorRead(input, iidx) => {
         memory(iidx)
       }
       case AVectorDot(arg1, arg2) => {
-        val av1 = eval(arg1)
-        val av2 = eval(arg2)
-        val nv = nextvector
+        val av1 = eval(arg1).asInstanceOf[VectorSymIndexable]
+        val av2 = eval(arg2).asInstanceOf[VectorSymIndexable]
+        val i = IntSymD("i")
+        val nv = nextscalar
         val asize = arg1.size.eval(params)(IntLikeIntSym)
-        emit("double d$nv = 0.0;", "nv" -> nv)
-        emit("for(int i = 0; i < $asize; i++) d$nv += $av1i * $av2i;",
-          "asize" -> asize, "nv" -> nv, "av1i" -> av1.at(IntSymD("i")), "av2i" -> av2.at(IntSymD("i")))
-        new VectorSym("d" + nv.name)
+        emit("double $nv = 0.0;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) $nv += $av1i * $av2i;",
+          "asize" -> asize, "nv" -> nv, "av1i" -> av1.indexAt(i), "av2i" -> av2.indexAt(i))
+        nv
       }
       case AVectorMpy(arg, scale) => {
         val va = eval(arg)
-        val vs = eval(scale)
-        new VectorSym("(" + va.vss + " * " + vs.at(IntSymL(0)).name + ")")
+        val vs = eval(scale).asInstanceOf[VectorSymIndexable].indexAt(IntSymL(0))
+        va match {
+          case vaa: VectorSymIndexable => {
+            new VectorSymIndexable {
+              def indexAt(idx: IntSym): DoubleSym = vaa.indexAt(idx) * vs
+              def size: IntSym = vaa.size
+            }
+          }
+          case _ => {
+            new VectorSym {
+              def writeTo(dst: DstWritable): String = va.writeTo(new DstWritableScaled(dst, vs))
+            }
+          }
+        }
       }
       case AVectorDiv(arg, scale) => {
         val va = eval(arg)
-        val vs = eval(scale)
-        new VectorSym("(" + va.vss + " / " + vs.at(IntSymL(0)).name + ")")
+        val vs = eval(scale).asInstanceOf[VectorSymIndexable].indexAt(IntSymL(0))
+        va match {
+          case vaa: VectorSymIndexable => {
+            new VectorSymIndexable {
+              def indexAt(idx: IntSym): DoubleSym = vaa.indexAt(idx) / vs
+              def size: IntSym = vaa.size
+            }
+          }
+          case _ => {
+            new VectorSym {
+              def writeTo(dst: DstWritable): String = va.writeTo(new DstWritableScaledInv(dst, vs))
+            }
+          }
+        }
       }
       case AVectorSqrt(arg) => {
-        val va = eval(arg)
-        new VectorSym("sqrt(" + va.vss + ")")
+        val va = eval(arg).asInstanceOf[VectorSymIndexable]
+        val nv = nextscalar
+        emit("double $nv = sqrt($x);", "nv" -> nv, "x" -> va.indexAt(IntSymL(0)))
+        nv
       }
       case AVectorNorm2(arg) => {
-        val av = eval(arg)
-        val nv = nextvector
-        val asize = arg.size.eval(params)(IntLikeIntSym)
-        emit("double d$nv = 0.0;", "nv" -> nv)
-        emit("for(int i = 0; i < $asize; i++) d$nv += $avi * $avi;",
-          "asize" -> asize, "nv" -> nv, "avi" -> av.at(IntSymD("i")))
-        new VectorSym("d" + nv.name)
+        val va = eval(arg).asInstanceOf[VectorSymIndexable]
+        val nv = nextscalar
+        val asize = arg.size.eval(params)
+        emit("double $nv = 1e-100;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) $nv += $avi * $avi;",
+          "asize" -> asize, "nv" -> nv, "avi" -> va.indexAt(IntSymD("i")))
+        nv
       }
       case AVectorNormInf(arg) => {
-        val av = eval(arg)
-        val nv = nextvector
-        val asize = arg.size.eval(params)(IntLikeIntSym)
-        emit("double d$nv = 0.0;", "nv" -> nv)
-        emit("for(int i = 0; i < $asize; i++) d$nv = fmax(d$nv, fabs($avi));",
-          "asize" -> asize, "nv" -> nv, "avi" -> av.at(IntSymD("i")))
-        new VectorSym("d" + nv.name)
+        val va = eval(arg).asInstanceOf[VectorSymIndexable]
+        val nv = nextscalar
+        val asize = arg.size.eval(params)
+        emit("double $nv = 1e-100;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) $nv = fmax($nv, fabs($avi));",
+          "asize" -> asize, "nv" -> nv, "avi" -> va.indexAt(IntSymD("i")))
+        nv
       }
       case AVectorMax(arg1, arg2) => {
-        val av1 = eval(arg1)
-        val av2 = eval(arg2)
-        new VectorSym("fmax(" + av1.vss + ", " + av2.vss + ")")
+        val va1 = eval(arg1).asInstanceOf[VectorSymIndexable]
+        val va2 = eval(arg2).asInstanceOf[VectorSymIndexable]
+        new VectorSymIndexable {
+          def indexAt(idx: IntSym): DoubleSym = DoubleSymD("fmax(" + va1.indexAt(idx).name + ", " + va2.indexAt(idx).name + ")")
+          def size: IntSym = va1.size
+        }
       }
       case AVectorMin(arg1, arg2) => {
-        val av1 = eval(arg1)
-        val av2 = eval(arg2)
-        new VectorSym("fmin(" + av1.vss + ", " + av2.vss + ")")
+        val va1 = eval(arg1).asInstanceOf[VectorSymIndexable]
+        val va2 = eval(arg2).asInstanceOf[VectorSymIndexable]
+        new VectorSymIndexable {
+          def indexAt(idx: IntSym): DoubleSym = DoubleSymD("fmin(" + va1.indexAt(idx).name + ", " + va2.indexAt(idx).name + ")")
+          def size: IntSym = va1.size
+        }
       }
       case AVectorTolerance(input) => {
-        new VectorSym("tolerance")
+        new VectorSymIndexable {
+          def indexAt(idx: IntSym): DoubleSym = DoubleSymD("tolerance")
+          def size: IntSym = IntSymL(1)
+        }
       }
       case AVectorConverge(arg, cond, body, itermax) => {
         val evarg = eval(arg)
-        val state = nextvector
+        val ssize = arg.size.eval(params)
+        val state = nextvector(ssize)
         val iterct = nextint
-        val ev = new SolverCompilerCGen(params, memory :+ state, null, this)
-        val evcond = ev.eval(cond)
+        val ev = new SolverCompilerCGen(params, memory :+ state, analysis.pushSubs(v), null, this)
+        val evcond = ev.eval(cond).asInstanceOf[VectorSymIndexable].indexAt(IntSymL(0))
         val evbody = ev.eval(body)
-        val ssize = arg.size.eval(params)(IntLikeIntSym)
-        emit("double $state[$ssize];", "state" -> state, "ssize" -> ssize)
-        emit("for(int i = 0; i < $ssize; i++) $state[i] = $evai;", "state" -> state, "ssize" -> ssize, "evai" -> evarg.at(IntSymD("i")))
+        emit("double $statea[$ssize];\ndouble $stateb[$ssize];\ndouble* $state = $statea;\ndouble* $stateswap = $stateb;", 
+          "state" -> state, "ssize" -> ssize)
+        emit(evarg.writeTo(new DstWritableArray(state.name)))
         if(itermax >= 0) {
           emit("int $iterct = 0;", "iterct" -> iterct)
         }
         emit("while(1) {")
         emit(ev.codeacc)
-        emit("for(int i = 0; i < $ssize; i++) $state[i] = $evbi;", "state" -> state, "ssize" -> ssize, "evbi" -> evbody.at(IntSymD("i")))
+        emit(evbody.writeTo(new DstWritableArray(state.name + "swap")))
         if(!ev.contains_converge) {
           emit("inner_loop_ct++;")
         }
         if(itermax >= 0) {
           emit("$iterct++;\nif($iterct >= " + itermax.toString + ") break;", "iterct" -> iterct)
         }
-        emit("if($cond <= 0) break;", "cond" -> evcond.at(IntSymL(0)))
+        emit("if($cond <= 0) break;", "cond" -> evcond)
+        if((inherit_promote == null)&&(inherit_push == null)) {
+          emit("fprintf(stderr, \"%f\\n\", $cond);", "cond" -> evcond)
+        }
+        else {
+          emit("fprintf(stderr, \"    %f\\n\", $cond);", "cond" -> evcond)
+        }
+        emit("{double* tmp = $state; $state = $stateswap; $stateswap = tmp;}", "state" -> state)
         emit("}")
         this.contains_converge = true
         state
       }
-      */
       case _ =>
         throw new IRValidationException()
     }
 
-    memocache += (v -> rv)
+    val needsSet = analysis.infocache(v).hint match {
+      case SolverAnalysisHintWritable() => false
+      case SolverAnalysisHintIndexable() => !rv.isInstanceOf[VectorSymIndexable]
+      case SolverAnalysisHintArray() => !rv.isInstanceOf[VectorSymLM]
+    }
 
-    rv
+    val trv = if(needsSet) {
+      val vsize = v.size.eval(params)
+      val tdata = nextvector(vsize)
+      emit("double $t[$size];", "t" -> tdata, "size" -> vsize)
+      emit(rv.writeTo(new DstWritableArray(tdata.name)))
+      tdata
+    }
+    else {
+      rv
+    }
+
+    memocache += (v -> trv)
+
+    trv
   }
 
   /*
