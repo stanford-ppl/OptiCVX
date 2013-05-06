@@ -144,7 +144,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     val fwriter = new FileWriter(fout)
     fwriter.write(code)
     fwriter.close()
-    val cmd = "gcc --std=gnu99 -O3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    val cmd = "gcc --std=gnu99 -Ofast -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
     println("[exec] " + cmd)
     val rt = java.lang.Runtime.getRuntime()
     val cproc = rt.exec(
@@ -227,10 +227,10 @@ class SolverAnalysisEntryInfo extends SolverAnalysisEntry {
     indexesNeeded += 100 //a large number
   }
   def hint: SolverAnalysisHint = {
-    if((writesNeeded <= 1)&&(indexesNeeded == 0)) {
+    if((writesNeeded <= 3)&&(indexesNeeded == 0)) {
       SolverAnalysisHintWritable()
     }
-    else if ((writesNeeded + indexesNeeded == 1)) {
+    else if (writesNeeded + indexesNeeded <= 3) {
       SolverAnalysisHintIndexable()
     }
     else {
