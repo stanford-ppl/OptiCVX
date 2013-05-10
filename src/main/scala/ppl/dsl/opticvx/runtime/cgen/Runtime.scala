@@ -66,40 +66,43 @@ typedef union memory_t {
 } memory_t;
 
 //returns the number of inner loop iterations required to converge
-static solution_t solve(const int* const params, const input_t* const* const inputs, double* const output, double tolerance) {"""
+static solution_t solve(const int* const params, const double* const* const inputs, double* const output, double tolerance) {"""
     code += "\nint inner_loop_ct = 0;\n\n"
     for(i <- 0 until v.arity) {
       code += "const int param" + i.toString + " = params[" + i.toString + "];\n"
     }
     for(i <- 0 until v.input.args.length) {
-      code += "const input_t* const input" + i.toString + " = inputs[" + i.toString + "];\n"
+      code += "const double* const input" + i.toString + " = inputs[" + i.toString + "];\n"
     }
     code += "\n"
     code += compiler.codeacc
     //code += "\nfor(int i = 0; i < " + v.size.eval(params)(IntLikeIntSym).name + "; i++) output[i] = " + result.at(IntSymD("i")).name + ";\n"
     code += "\nsolution_t rv;\nrv.num_iterations = inner_loop_ct;\nreturn rv;\n\n}\n\n"
     
-    code += "static int variable_size(int* params) {\n"
+    code += "static int variable_size(const int* const params) {\n"
     for(i <- 0 until v.arity) {
       code += "int param" + i.toString + " = params[" + i.toString + "];\n"
     }
     code += "return " + v.size.eval(params)(IntLikeIntSym).name + ";\n}\n\n"
     for(i <- 0 until v.input.args.length) {
       for(j <- 0 until v.input.args(i).dims.length) {
-        code += "static int structure_input" + i.toString + "_order" + j.toString + "(int* params, int* iidx) {\n"
-        for(i <- 0 until v.arity) {
-          code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+        code += "static int structure_input" + i.toString + "_order" + j.toString + "(const int* const params, const int* const iidx) {\n"
+        for(k <- 0 until v.arity) {
+          code += "int param" + k.toString + " = params[" + k.toString + "];\n"
         }
-        val pps = for (k <- 0 until v.arity) yield (IntSymD("params[" + k.toString + "]"): IntSym)
-        val iis = for (k <- 0 until j) yield (IntSymD("iidx[" + k.toString + "]"): IntSym)
+        for(k <- 0 until j) {
+          code += "int iidx" + k.toString + " = iidx[" + k.toString + "];\n"
+        }
+        val pps = for (k <- 0 until v.arity) yield (IntSymD("param" + k.toString): IntSym)
+        val iis = for (k <- 0 until j) yield (IntSymD("iidx" + k.toString): IntSym)
         val szs = v.input.args(i).dims(j).eval(pps ++ iis)(IntLikeIntSym)
         code += "return " + szs.name + ";\n}\n\n"
       }
-      code += "static matrix_shape_t shape_input" + i.toString + "(int* params, int* iidx) {\n"
+      code += "static matrix_shape_t shape_input" + i.toString + "(const int* const params, const int* const iidx) {\n"
       for(i <- 0 until v.arity) {
         code += "int param" + i.toString + " = params[" + i.toString + "];\n"
       }
-      val pps = for (k <- 0 until v.arity) yield (IntSymD("params[" + k.toString + "]"): IntSym)
+      val pps = for (k <- 0 until v.arity) yield (IntSymD("param" + k.toString): IntSym)
       val iis = for (k <- 0 until v.input.args(i).dims.length) yield (IntSymD("iidx[" + k.toString + "]"): IntSym)
       val dm = v.input.args(i).body.domain.eval(pps ++ iis)(IntLikeIntSym)
       val cdm = v.input.args(i).body.codomain.eval(pps ++ iis)(IntLikeIntSym)
@@ -107,13 +110,28 @@ static solution_t solve(const int* const params, const input_t* const* const inp
       code += "rv.domain = " + dm.name + ";\n"
       code += "rv.codomain = " + cdm.name + ";\n"
       code += "return rv;\n}\n\n"
-      code += "int (*inputdesc_structure" + i.toString + "[])(int* params, int* idxs) = {\n"
+      code += "static int size_input" + i.toString + "(const int* const params) {\n"
+      for(i <- 0 until v.arity) {
+        code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+      }
+      val szm: IRPoly = {
+        var srs: IRPoly = v.input.args(i).body.domain * v.input.args(i).body.codomain
+        val ssz: Seq[IRPoly] = v.input.args(i).dims
+        for(i <- 0 until ssz.length) {
+          srs = srs.sum(srs.arity - 1).substituteAt(srs.arity - 1, ssz(ssz.length - i - 1))
+        }
+        srs
+      }
+      code += "return " + szm.eval(pps)(IntLikeIntSym).name + ";\n"
+      code += "}\n\n"
+      code += "int (*inputdesc_structure" + i.toString + "[])(const int* const params, const int* const idxs) = {\n"
       for(j <- 0 until v.input.args(i).dims.length) {
         if(j != 0) code += ",\n"
         code += "structure_input" + i.toString + "_order" + j.toString
       }
       code += "};\n\n"
       code += "input_desc_t inputdesc" + i.toString + " = {\n"
+      code += ".size = size_input" + i.toString + ",\n"
       code += ".order = " + v.input.args(i).dims.length.toString + ",\n"
       code += ".structure = inputdesc_structure" + i.toString + ",\n"
       code += ".shape = shape_input" + i.toString + "};\n\n"
@@ -144,7 +162,7 @@ static solution_t solve(const int* const params, const input_t* const* const inp
     val fwriter = new FileWriter(fout)
     fwriter.write(code)
     fwriter.close()
-    val cmd = "gcc --std=gnu99 -O3 -ffast-math -fassociative-math -ftree-vectorizer-verbose=2 -msse3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    val cmd = "gcc --std=gnu99 -O3 -ffast-math -fassociative-math -msse3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
     println("[exec] " + cmd)
     val rt = java.lang.Runtime.getRuntime()
     val cproc = rt.exec(
@@ -468,13 +486,19 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
   }
 
     
-  def getInput(iidx: Int, sidx: Seq[IRPoly]): String = {
-    var mstr: String = "input" + iidx.toString
-    for(s <- sidx) {
-      mstr += "->idx[" + s.eval(params)(IntLikeIntSym).name + "]"
+  def getInput(iidx: Int, sidx: Seq[IRPoly], input: InputDesc): String = {
+    val mstr: String = "input" + iidx.toString
+    val ssz: Seq[IRPoly] = input.args(iidx).dims
+    if(ssz.length != sidx.length) throw new IRValidationException()
+    val sls: IRPoly = input.args(iidx).body.domain * input.args(iidx).body.codomain
+    var qq: IRPoly = IRPoly.const(0, input.arity)
+    var srs: IRPoly = sls
+    for(i <- 0 until sidx.length) {
+      qq = qq + srs.sum(srs.arity - 1).substituteSeq(sidx.dropRight(i))
+      srs = srs.sum(srs.arity - 1).substituteAt(srs.arity - 1, ssz(ssz.length - i - 1))
     }
-    mstr += "->mat"
-    mstr
+    val eqq = qq.eval(params)(IntLikeIntSym)
+    "(" + mstr + " + " + eqq.name + ")"
   }
 
   var contains_converge: Boolean = false
@@ -613,7 +637,7 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
       }
       case AVectorMpyInput(arg, iidx, sidx) => {
         val vs = eval(arg).asInstanceOf[VectorSymIndexable]
-        val mstr = new FlatSym(getInput(iidx, sidx))
+        val mstr = new FlatSym(getInput(iidx, sidx, v.input))
         val osize = arg.input.args(iidx).body.codomain.substituteSeq(sidx).eval(params)
         if(arg.size == IRPoly.const(1, arg.arity)) {
           new VectorSymIndexable {
@@ -640,7 +664,7 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
       }
       case AVectorMpyInputT(arg, iidx, sidx) => {
         val vs = eval(arg).asInstanceOf[VectorSymIndexable]
-        val mstr = new FlatSym(getInput(iidx, sidx))
+        val mstr = new FlatSym(getInput(iidx, sidx, v.input))
         val osize = arg.input.args(iidx).body.domain.substituteSeq(sidx).eval(params)
         if(arg.size == IRPoly.const(1, arg.arity)) {
           new VectorSymIndexable {

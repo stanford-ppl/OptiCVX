@@ -6,36 +6,39 @@
 
 extern solver_t solver;
 
-typedef union mutinput_t {
-  union mutinput_t* idx[0];
-  double mat[0];
-} mutinput_t;
 
-mutinput_t* read_input(FILE* f, input_desc_t* desc, int* params);
-mutinput_t* read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs);
-double* read_matrix(FILE* f, matrix_shape_t shape);
+double* read_input(FILE* f, input_desc_t* desc, int* params);
+int read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs, double* output);
+int read_matrix(FILE* f, matrix_shape_t shape, double* output);
 
-mutinput_t* read_input(FILE* f, input_desc_t* desc, int* params) {
+double* read_input(FILE* f, input_desc_t* desc, int* params) {
+  /* allocate space for the input */
+  int rvsz = desc->size(params);
+  double* rv = malloc(rvsz * sizeof(double));
   /* allocate enough space on the stack for the temporary array */
   int tmpidxs[desc->order];
-  return read_input_sub(f, desc, params, 0, tmpidxs);
-}
-
-mutinput_t* read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs) {
-  if(n_idxs == desc->order) {
-    return (mutinput_t*)read_matrix(f, desc->shape(params, idxs));
-  }
-  int isz = desc->structure[n_idxs](params, idxs);
-  mutinput_t* rv = malloc(isz * sizeof(mutinput_t*));
-  for(int i = 0; i < isz; i++) {
-    idxs[n_idxs] = i;
-    rv->idx[i] = read_input_sub(f, desc, params, n_idxs + 1, idxs);
+  if(read_input_sub(f, desc, params, 0, tmpidxs, rv) != rvsz) {
+    fprintf(stderr, "error in reading matrix: incorrect number of entries written.\n");
+    exit(1);
   }
   return rv;
 }
 
-double* read_matrix(FILE* f, matrix_shape_t shape) {
-  double* rv = malloc(shape.domain * shape.codomain * sizeof(double));
+int read_input_sub(FILE* f, input_desc_t* desc, int* params, int n_idxs, int* idxs, double* output) {
+  if(n_idxs == desc->order) {
+    return read_matrix(f, desc->shape(params, idxs), output);
+  }
+  int acc = 0;
+  int isz = desc->structure[n_idxs](params, idxs);
+  for(int i = 0; i < isz; i++) {
+    idxs[n_idxs] = i;
+    int cst = read_input_sub(f, desc, params, n_idxs + 1, idxs, output);
+    acc += cst;
+    output += cst;
+  }
+}
+
+int read_matrix(FILE* f, matrix_shape_t shape, double* output) {
   for(int i = 0; i < shape.domain * shape.codomain; i++) {
     const char* scanstr;
     if(i == (shape.domain * shape.codomain - 1)) {
@@ -60,12 +63,12 @@ double* read_matrix(FILE* f, matrix_shape_t shape) {
         scanstr = " , %lf";
       }
     }
-    if(fscanf(f, scanstr, &(rv[i])) == 0) {
+    if(fscanf(f, scanstr, &(output[i])) == 0) {
       fprintf(stderr, "error in reading input matrix.\n");
       exit(-1);
     }
   }
-  return rv;
+  return shape.domain * shape.codomain;
 }
 
 int main(int argc, char** argv) {
@@ -81,7 +84,7 @@ int main(int argc, char** argv) {
     params[i] = atoi(argv[i+2]);
   }
 
-  mutinput_t* inputs[solver.num_inputs];
+  const double* inputs[solver.num_inputs];
   for(int i = 0; i < solver.num_inputs; i++) {
     inputs[i] = read_input(stdin, solver.input_descs[i], params);
   }
@@ -89,7 +92,7 @@ int main(int argc, char** argv) {
   int problem_size = solver.variable_size(params);
   double output[problem_size];
   clock_t start = clock();
-  solution_t solution = solver.solve(params, (const input_t* const* const)inputs, output, tolerance);
+  solution_t solution = solver.solve(params, inputs, output, tolerance);
   double elapsed = ((double)(clock() - start))/(CLOCKS_PER_SEC);
 
   for(int i = 0; i < problem_size; i++) {
