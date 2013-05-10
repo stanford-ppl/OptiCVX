@@ -3,8 +3,8 @@
 
 /* a structure that contains an input */
 typedef union input_t {
-  union input_t* idx[0];
-  double mat[0];
+  const union input_t* idx[0];
+  const double mat[0];
 } input_t;
 
 /* a structure that describes the shape of a matrix */

@@ -66,13 +66,13 @@ typedef union memory_t {
 } memory_t;
 
 //returns the number of inner loop iterations required to converge
-static solution_t solve(int* params, input_t** inputs, double* output, double tolerance) {"""
+static solution_t solve(const int* const params, const input_t* const* const inputs, double* const output, double tolerance) {"""
     code += "\nint inner_loop_ct = 0;\n\n"
     for(i <- 0 until v.arity) {
-      code += "int param" + i.toString + " = params[" + i.toString + "];\n"
+      code += "const int param" + i.toString + " = params[" + i.toString + "];\n"
     }
     for(i <- 0 until v.input.args.length) {
-      code += "input_t* input" + i.toString + " = inputs[" + i.toString + "];\n"
+      code += "const input_t* const input" + i.toString + " = inputs[" + i.toString + "];\n"
     }
     code += "\n"
     code += compiler.codeacc
@@ -144,7 +144,7 @@ static solution_t solve(int* params, input_t** inputs, double* output, double to
     val fwriter = new FileWriter(fout)
     fwriter.write(code)
     fwriter.close()
-    val cmd = "gcc --std=gnu99 -Ofast -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    val cmd = "gcc --std=gnu99 -O3 -ffast-math -fassociative-math -ftree-vectorizer-verbose=2 -msse3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
     println("[exec] " + cmd)
     val rt = java.lang.Runtime.getRuntime()
     val cproc = rt.exec(
@@ -311,10 +311,20 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
         promoteSubs += (v -> ev)
       }
       case AVectorMpyInput(arg, iidx, sidx) => {
-        analyze(arg).addNeedIndexLoop
+        if(arg.size == IRPoly.const(1, arg.arity)) {
+          analyze(arg).addNeedIndex
+        }
+        else {
+          analyze(arg).addNeedIndexLoop
+        }
       }
       case AVectorMpyInputT(arg, iidx, sidx) => {
-        analyze(arg).addNeedIndexLoop
+        if(arg.size == IRPoly.const(1, arg.arity)) {
+          analyze(arg).addNeedIndex
+        }
+        else {
+          analyze(arg).addNeedIndexLoop
+        }
       }
       case AVectorRead(input, iidx) => 
       case AVectorDot(arg1, arg2) => {
@@ -617,10 +627,11 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
           emit("""
             double $nv[$osize];
             for(int i = 0; i < $osize; i++) {
-              $nv[i] = 0.0;
+              double acc = 0.0;
               for(int j = 0; j < $isize; j++) {
-                $nv[i] += $m[i*$isize+j] * $xj;
+                acc += $m[i*$isize+j] * $xj;
               }
+              $nv[i] = acc;
             }
             """,
             "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "xj" -> vs.indexAt(IntSymD("j")))
@@ -793,11 +804,18 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
     }
 
     val trv = if(needsSet) {
-      val vsize = v.size.eval(params)
-      val tdata = nextvector(vsize)
-      emit("double $t[$size];", "t" -> tdata, "size" -> vsize)
-      emit(rv.writeTo(new DstWritableArray(tdata.name)))
-      tdata
+      if((v.size == IRPoly.const(1, v.arity))&&(rv.isInstanceOf[VectorSymIndexable])) {
+        val tdd = nextscalar
+        emit("double $t = $x;", "t" -> tdd, "x" -> rv.asInstanceOf[VectorSymIndexable].indexAt(IntSymL(0)))
+        tdd
+      }
+      else {
+        val vsize = v.size.eval(params)
+        val tdata = nextvector(vsize)
+        emit("double $t[$size];", "t" -> tdata, "size" -> vsize)
+        emit(rv.writeTo(new DstWritableArray(tdata.name)))
+        tdata
+      }
     }
     else {
       rv

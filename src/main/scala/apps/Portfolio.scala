@@ -46,8 +46,8 @@ object DCPPortfolioApp extends DCPOps with DCPLibrary {
     val solver = tictoc(prob.gen(PrimalDualProjections))
     println("generating problem data...")
     val rand = new scala.util.Random(42)
-    val m_in: Int = 30
-    val n_in: Int = 1000
+    val m_in: Int = 10
+    val n_in: Int = 100
     val gamma_in: Double = 10
     val F_in: Seq[Seq[Double]] = for(i <- 0 until n_in) yield for (j <- 0 until m_in) yield scala.math.sqrt(gamma_in) * rand.nextGaussian()
     val D_in: Seq[Double] = for(i <- 0 until n_in) yield scala.math.sqrt(2*gamma_in*rand.nextDouble())

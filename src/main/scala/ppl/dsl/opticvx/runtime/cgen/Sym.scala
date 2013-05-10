@@ -108,8 +108,13 @@ trait VectorSymIndexable extends VectorSym {
   def indexAt(idx: IntSym): DoubleSym
   def size: IntSym
   def writeTo(dst: DstWritable): String = {
-    val i = IntSymD("i")
-    "for(int i = 0; i < " + size.name + "; i++) " + dst.writeAt(i, indexAt(i)) + ";\n"
+    if(size == IntSymL(1)) {
+      dst.writeAt(IntSymL(0), indexAt(IntSymL(0))) + ";\n"
+    }
+    else {
+      val i = IntSymD("i")
+      "for(int i = 0; i < " + size.name + "; i++) " + dst.writeAt(i, indexAt(i)) + ";\n"
+    }
   }
 }
 class VectorSymScalar(data: DoubleSym) extends VectorSymIndexable {
