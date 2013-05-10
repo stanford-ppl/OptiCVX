@@ -65,6 +65,8 @@ typedef union memory_t {
   double vec[0];
 } memory_t;
 
+
+
 //returns the number of inner loop iterations required to converge
 static solution_t solve(const int* const params, const double* const* const inputs, double* const output, double tolerance) {"""
     code += "\nint inner_loop_ct = 0;\n\n"
@@ -162,7 +164,7 @@ static solution_t solve(const int* const params, const double* const* const inpu
     val fwriter = new FileWriter(fout)
     fwriter.write(code)
     fwriter.close()
-    val cmd = "gcc --std=gnu99 -O3 -ffast-math -fassociative-math -msse3 -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
+    val cmd = "gcc --std=gnu99 -O3 -ffast-math -fassociative-math -o bin/cgen.out gen/out.c src/main.c -lm >log/gcc.o 2>log/gcc.e"
     println("[exec] " + cmd)
     val rt = java.lang.Runtime.getRuntime()
     val cproc = rt.exec(
@@ -614,9 +616,17 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
       case AVectorSlice(arg, at, size) => {
         val vs = eval(arg).asInstanceOf[VectorSymIndexable]
         val osize = size.eval(params)
-        new VectorSymIndexable {
-          def indexAt(idx: IntSym): DoubleSym = vs.indexAt(idx + at.eval(params))
-          def size: IntSym = osize
+        if(vs.isInstanceOf[VectorSymNamed]) {
+          val nv = nextvector(osize)
+          emit("double* $nv = &($vs[$at]);", 
+            "nv" -> nv, "vs" -> vs.asInstanceOf[VectorSymNamed], "at" -> at.eval(params))
+          nv
+        }
+        else {
+          new VectorSymIndexable {
+            def indexAt(idx: IntSym): DoubleSym = vs.indexAt(idx + at.eval(params))
+            def size: IntSym = osize
+          }
         }
       }
       case AVectorSumFor(len, arg) => {
@@ -648,6 +658,11 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
         else {
           val nv = nextvector(osize)
           val isize = arg.size.eval(params)
+          // emit("""
+          //   double $nv[$osize];
+          //   cblas_dgemv(CblasRowMajor, CblasNoTrans, $osize, $isize, 1.0, $m, $isize, $x, 1, 0.0, $nv, 1);
+          //   """,
+          //   "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "x" -> vs.asInstanceOf[VectorSymNamed])
           emit("""
             double $nv[$osize];
             for(int i = 0; i < $osize; i++) {
@@ -675,6 +690,11 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
         else {
           val nv = nextvector(osize)
           val isize = arg.size.eval(params)
+          // emit("""
+          //   double $nv[$osize];
+          //   cblas_dgemv(CblasRowMajor, CblasTrans, $isize, $osize, 1.0, $m, $osize, $x, 1, 0.0, $nv, 1);
+          //   """,
+          //   "m" -> mstr, "nv" -> nv, "osize" -> osize, "isize" -> isize, "x" -> vs.asInstanceOf[VectorSymNamed])
           emit("""
             double $nv[$osize];
             for(int i = 0; i < $osize; i++) $nv[i] = 0.0;
