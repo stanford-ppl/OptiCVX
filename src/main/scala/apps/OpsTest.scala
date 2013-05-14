@@ -62,6 +62,7 @@ object DCPOpsTestApp extends DCPOps with DCPLibrary {
     val soln = tictoc(codeobj.solve(n_in)(a_in)(tol))
     /* print out the results */
     println("converged in " + soln.num_iterations + " iterations")
+    println("converged in " + soln.timer + " seconds")
     println("x = " + soln.resolve(x).map(d => "%1.6g" format d).mkString("[", ", ", "]"))
     println("y = " + soln.resolve(y).map(d => "%1.6g" format d).mkString("[", ", ", "]"))
     

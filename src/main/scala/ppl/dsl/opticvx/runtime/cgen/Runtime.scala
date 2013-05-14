@@ -362,10 +362,17 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
       case AVectorSqrt(arg) => {
         analyze(arg).addNeedIndex
       }
+      case AVectorPow(base, exponent) => {
+        analyze(base).addNeedIndex
+        analyze(exponent).addNeedIndex
+      }
       case AVectorNorm2(arg) => {
         analyze(arg).addNeedIndex
       }
       case AVectorNormInf(arg) => {
+        analyze(arg).addNeedIndex
+      }
+      case AVectorNormOne(arg) => {
         analyze(arg).addNeedIndex
       }
       case AVectorMax(arg1, arg2) => {
@@ -377,6 +384,7 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
         analyze(arg2).addNeedIndex
       }
       case AVectorTolerance(input) => 
+      case AVectorFromInt(input, arg) =>
       case AVectorConverge(arg, cond, body, itermax) => {
         analyze(arg).addNeedWrite
         val ev = new SolverAnalysisCGen(null, this)
@@ -762,6 +770,13 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
         emit("double $nv = sqrt($x);", "nv" -> nv, "x" -> va.indexAt(IntSymL(0)))
         nv
       }
+      case AVectorPow(base, exponent) => {
+        val vb = eval(base).asInstanceOf[VectorSymIndexable]
+        val ve = eval(exponent).asInstanceOf[VectorSymIndexable]
+        val nv = nextscalar
+        emit("double $nv = pow($b, $e);", "nv" -> nv, "b" -> vb.indexAt(IntSymL(0)), "e" -> ve.indexAt(IntSymL(0)))
+        nv
+      }
       case AVectorNorm2(arg) => {
         val va = eval(arg).asInstanceOf[VectorSymIndexable]
         val nv = nextscalar
@@ -777,6 +792,15 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
         val asize = arg.size.eval(params)
         emit("double $nv = 1e-100;", "nv" -> nv)
         emit("for(int i = 0; i < $asize; i++) $nv = fmax($nv, fabs($avi));",
+          "asize" -> asize, "nv" -> nv, "avi" -> va.indexAt(IntSymD("i")))
+        nv
+      }
+      case AVectorNormOne(arg) => {
+        val va = eval(arg).asInstanceOf[VectorSymIndexable]
+        val nv = nextscalar
+        val asize = arg.size.eval(params)
+        emit("double $nv = 1e-100;", "nv" -> nv)
+        emit("for(int i = 0; i < $asize; i++) $nv += fabs($avi);",
           "asize" -> asize, "nv" -> nv, "avi" -> va.indexAt(IntSymD("i")))
         nv
       }
@@ -799,6 +823,12 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
       case AVectorTolerance(input) => {
         new VectorSymIndexable {
           def indexAt(idx: IntSym): DoubleSym = DoubleSymD("tolerance")
+          def size: IntSym = IntSymL(1)
+        }
+      }
+      case AVectorFromInt(input, arg) => {
+        new VectorSymIndexable {
+          def indexAt(idx: IntSym): DoubleSym = DoubleSymD("((double)" + arg.eval(params).name + ")")
           def size: IntSym = IntSymL(1)
         }
       }
@@ -826,16 +856,16 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
           emit("$iterct++;\nif($iterct >= " + itermax.toString + ") break;", "iterct" -> iterct)
         }
         emit("if($cond <= 0) break;", "cond" -> evcond)
-        if((inherit_promote == null)&&(inherit_push == null)) {
-          emit("fprintf(stderr, \"%f\\n\", $cond);", "cond" -> evcond)
-        }
-        else {
-          emit("fprintf(stderr, \"    %f\\n\", $cond);", "cond" -> evcond)
-        }
+        // if((inherit_promote == null)&&(inherit_push == null)) {
+        //   emit("fprintf(stderr, \"%f\\n\", $cond);", "cond" -> evcond)
+        // }
+        // else {
+        //   emit("fprintf(stderr, \"    %f\\n\", $cond);", "cond" -> evcond)
+        // }
         emit("{double* tmp = $state; $state = $stateswap; $stateswap = tmp;}", "state" -> state)
         emit("}")
         this.contains_converge = true
-        state
+        new VectorSymNamed(state.name + "swap",  ssize)
       }
       case _ =>
         throw new IRValidationException()

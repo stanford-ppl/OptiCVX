@@ -11,11 +11,22 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
 
   def code(Ai: Almap, bi: AVector, Fi: Almap, gi: AVector, ci: AVector, cone: Cone, tol: AVector): AVector = {
 
-    val A: Almap = AlmapVCat(-Ai, -Fi)
+    var A: Almap = AlmapVCat(-Ai, -Fi)
     //val P: Almap = AlmapHCat(A, AlmapIdentity(Ai.input, Ai.codomain + Fi.codomain))
-    val b = AVectorCat(bi, gi)
-    val c = ci
+    var b = AVectorCat(bi, gi)
+    var c = ci
     val K: Cone = cat(zerocone(Ai.codomain), cone)
+
+    val avDd: AVector = {
+      val i = IRPoly.param(A.arity, A.arity + 1)
+      val ei = AVectorZero(A.input.promote, i) ++ AVectorOne(A.input.promote) ++ AVectorZero(A.input.promote, A.domain.promote - i - IRPoly.const(1, A.arity + 1))
+      AVectorCatFor(A.domain, AVectorPow(AVectorDiv(AVectorFromInt(A.input, A.domain).promote, AVectorNormOne(A.promote * ei)), AVectorDiv(AVectorFromInt(A.input, A.domain), AVectorFromInt(A.input, A.domain + A.codomain)).promote))
+    }
+    val Dd: Almap = AlmapDiagVector(avDd)
+    val Ddinv: Almap = AlmapDiagVectorInv(avDd)
+
+    A = A * Dd
+    c = Dd * c
 
     val acn: AVector = {
       val i = IRPoly.param(A.arity, A.arity + 1)
@@ -34,8 +45,8 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
 
       def body: AVector = {
         val Aproj = new CGProject(pr(A), pr(M), pr(b))
-        Aproj.tol = 1e-6
-        Aproj.itermax = 10
+        Aproj.tol = 1e-4
+        Aproj.itermax = 20
         x := Aproj.proj(x - pr(c), s + y, x)
         val prA = pr(A)
         val Ax = pr(A) * x
@@ -54,7 +65,7 @@ object PrimalDualProjections extends SolverGen with SolverGenUtil {
 
     PDPConverge.run
 
-    PDPConverge.x
+    Ddinv * PDPConverge.x
   }
 }
 

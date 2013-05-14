@@ -824,7 +824,7 @@ case class AlmapDiagVector(val arg: AVector) extends Almap {
     if(arg.size != x.size) throw new IRValidationException()
     val idx = IRPoly.param(arg.arity, arg.arity + 1)
     val ione = IRPoly.const(1, arg.arity + 1)
-    AVectorCatFor(arg.size, AVectorMpy(AVectorSlice(arg.promote, idx, ione), AVectorSlice(x.promote, idx, ione)))
+    AVectorCatFor(arg.size, AVectorMpy(AVectorSlice(x.promote, idx, ione), AVectorSlice(arg.promote, idx, ione)))
   }
 
   def is0: Boolean = arg.is0
@@ -842,3 +842,40 @@ case class AlmapDiagVector(val arg: AVector) extends Almap {
 
   override def toString: String = "diagvector(" + arg.toString + ")"
 }
+
+case class AlmapDiagVectorInv(val arg: AVector) extends Almap {
+  val arity: Int = arg.arity
+  val input: InputDesc = arg.input
+  val domain: IRPoly = arg.size
+  val codomain: IRPoly = arg.size
+
+  arityVerify()
+
+  def arityOp(op: ArityOp): Almap = AlmapDiagVectorInv(arg.arityOp(op))
+  def inputOp(op: InputOp): Almap = AlmapDiagVectorInv(arg.inputOp(op))
+
+  def T: Almap = Tcheck(AlmapDiagVectorInv(arg))
+
+  def mmpy(x: AVector): AVector = mmpycheck(x) {
+    if(arg.size != x.size) throw new IRValidationException()
+    val idx = IRPoly.param(arg.arity, arg.arity + 1)
+    val ione = IRPoly.const(1, arg.arity + 1)
+    AVectorCatFor(arg.size, AVectorMpy(AVectorSlice(x.promote, idx, ione), AVectorSlice(arg.promote, idx, ione)))
+  }
+
+  def is0: Boolean = arg.is0
+  def isPure: Boolean = arg.isPure
+
+  def simplify: Almap = {
+    val sa: AVector = arg.simplify
+    if(sa.is0) {
+      throw new IRValidationException()
+    }
+    else {
+      AlmapDiagVectorInv(sa)
+    }
+  }
+
+  override def toString: String = "diagvectorinv(" + arg.toString + ")"
+}
+

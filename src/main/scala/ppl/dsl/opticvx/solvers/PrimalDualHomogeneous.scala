@@ -5,29 +5,27 @@ import ppl.dsl.opticvx.model._
 import ppl.dsl.opticvx.solvergen._
 import scala.collection.immutable.Seq
 
-/*
+
 object PrimalDualHomogeneous extends SolverGenHomogeneous with SolverGenUtil {
 
-
   def hcode(A: Almap, K: Cone, tol: AVector): AVector = {
-    val x = vector(A.domain)
-    val z = vector(A.domain)
-    val u = vector(A.domain)
-    val cond = scalar
+    object PDHConverge extends Converge {
+      val x = state(K.central_vector(A.input))
+      val u = state(zeros(A.domain))
 
-    val Aproj = new LSQRProject(A, zeros(A.codomain))
-
-    x := K.central_vector(A.input)
-    u := zeros(u.size)
-
-    converge(cond - tol) {
-      z := Aproj.proj(x - u, tol)
-      x := K.project(z + u)
-      u := u + z - x
-      cond := norm_inf(A*x)
+      def body: AVector = {
+        val Aproj = new LSQRProject(pr(A), zeros(A.codomain))
+        val z = Aproj.proj(x - u, pr(tol))
+        x := K.project(z + u)
+        u := u + z - x
+        norm_inf(pr(A) * x) - pr(tol)
+      }
     }
 
-    return x
+    PDHConverge.run
+
+    PDHConverge.x
   }
+
 }
-*/
+
