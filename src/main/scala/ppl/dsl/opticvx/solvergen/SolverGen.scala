@@ -158,6 +158,6 @@ trait SolverGen {
     if(rv.input != problem.input) throw new IRValidationException()
     if(rv.size != problem.varSize) throw new IRValidationException()
     
-    rv
+    rv.simplify
   }
 }

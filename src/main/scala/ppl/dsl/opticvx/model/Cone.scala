@@ -17,6 +17,15 @@ trait Cone extends HasArity[Cone] {
   def scaleest(u: AVector): AVector
 
   def freematrix(input: InputDesc): Almap
+
+  def average_under(u: AVector): AVector = {
+    val rv = average_under_sub(u)
+    if(rv.size != u.size) throw new IRValidationException()
+    if(rv.input != u.input) throw new IRValidationException()
+    rv
+  }
+
+  protected def average_under_sub(u: AVector): AVector
 }
 
 case class ConeNull(val arity: Int) extends Cone {
@@ -41,6 +50,11 @@ case class ConeNull(val arity: Int) extends Cone {
 
   def freematrix(input: InputDesc): Almap = {
     AlmapZero(input, IRPoly.const(0, arity), IRPoly.const(0, arity))
+  }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != IRPoly.const(0, arity)) throw new IRValidationException()
+    u
   }
 }
 
@@ -67,6 +81,11 @@ case class ConeZero(val arity: Int) extends Cone {
   def freematrix(input: InputDesc): Almap = {
     AlmapIdentity(input, IRPoly.const(1, arity))
   }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    u
+  }
 }
 
 case class ConeFree(val arity: Int) extends Cone {
@@ -91,6 +110,11 @@ case class ConeFree(val arity: Int) extends Cone {
 
   def freematrix(input: InputDesc): Almap = {
     AlmapIdentity(input, IRPoly.const(1, arity))
+  }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    u
   }
 }
 
@@ -117,6 +141,11 @@ case class ConeNonNegative(val arity: Int) extends Cone {
 
   def freematrix(input: InputDesc): Almap = {
     AlmapIdentity(input, IRPoly.const(1, arity))
+  }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != IRPoly.const(1, arity)) throw new IRValidationException()
+    u
   }
 }
 
@@ -147,6 +176,13 @@ case class ConeSecondOrder(val dim: IRPoly) extends Cone {
 
   def freematrix(input: InputDesc): Almap = {
     AlmapVCatFor(size, AlmapIdentity(input.promote, IRPoly.const(1, arity + 1)))
+  }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != size) throw new IRValidationException()
+    val i = IRPoly.param(u.arity, u.arity + 1)
+    val avg = AVectorDiv(AVectorSumFor(size, AVectorSlice(u.promote, i, IRPoly.const(1, u.arity + 1))), AVectorFromInt(u.input, size))
+    AVectorCatFor(size, avg.promote)
   }
 
   /*
@@ -202,6 +238,13 @@ case class ConeProduct(val arg1: Cone, val arg2: Cone) extends Cone {
     AlmapDiagCat(arg1.freematrix(input), arg2.freematrix(input))
   }
 
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != size) throw new IRValidationException()
+    val v1 = AVectorSlice(u, IRPoly.const(0, u.arity), arg1.size)
+    val v2 = AVectorSlice(u, arg1.size, arg2.size)
+    AVectorCat(arg1.average_under(v1), arg2.average_under(v2))
+  }
+
   /*
   def project_eval(params: Seq[Int], v: Seq[Double]): Seq[Double] = {
     if(v.size != size.eval(params)(IntLikeInt)) throw new IRValidationException()
@@ -252,6 +295,12 @@ case class ConeFor(val len: IRPoly, val body: Cone) extends Cone {
 
   def freematrix(input: InputDesc): Almap = {
     AlmapDiagCatFor(len, body.freematrix(input.promote))
+  }
+
+  def average_under_sub(u: AVector): AVector = {
+    if(u.size != size) throw new IRValidationException()
+    val v = AVectorSlice(u.promote, body.size.sum(arity), body.size)
+    AVectorCatFor(len, body.average_under(v))
   }
 
   /*

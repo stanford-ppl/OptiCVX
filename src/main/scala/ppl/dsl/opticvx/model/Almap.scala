@@ -860,7 +860,7 @@ case class AlmapDiagVectorInv(val arg: AVector) extends Almap {
     if(arg.size != x.size) throw new IRValidationException()
     val idx = IRPoly.param(arg.arity, arg.arity + 1)
     val ione = IRPoly.const(1, arg.arity + 1)
-    AVectorCatFor(arg.size, AVectorMpy(AVectorSlice(x.promote, idx, ione), AVectorSlice(arg.promote, idx, ione)))
+    AVectorCatFor(arg.size, AVectorDiv(AVectorSlice(x.promote, idx, ione), AVectorSlice(arg.promote, idx, ione)))
   }
 
   def is0: Boolean = arg.is0

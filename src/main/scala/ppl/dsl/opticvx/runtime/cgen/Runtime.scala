@@ -46,7 +46,7 @@ case class DstOp(val dstscale: String, val srcscale: String) {
 
 object SolverRuntimeCGen extends SolverRuntime {
   def compile(vix: AVector): SolverCompiled = {
-    val v = vix.simplify
+    val v = vix.intern
     val analysis = new SolverAnalysisCGen(null, null)
     analysis.analyze(v).addNeedWrite
     val params: Seq[IntSym] = for(i <- 0 until v.arity) yield IntSymD("param" + i.toString)
@@ -282,7 +282,8 @@ class SolverAnalysisCGen(inherit_promote: SolverAnalysisCGen, inherit_push: Solv
   val promoteSubs = new scala.collection.mutable.HashMap[AVector, SolverAnalysisCGen]
   val pushSubs = new scala.collection.mutable.HashMap[AVector, SolverAnalysisCGen]
 
-  def analyze(v: AVector): SolverAnalysisEntry = {
+  def analyze(vix: AVector): SolverAnalysisEntry = {
+    val v = vix.intern
     if(infocache.contains(v)) return infocache(v)
 
     if(inherit_promote != null) {
@@ -513,7 +514,8 @@ class SolverCompilerCGen(params: Seq[IntSym], memory: Seq[VectorSym], analysis: 
 
   var contains_converge: Boolean = false
 
-  def eval(v: AVector): VectorSym = {
+  def eval(vix: AVector): VectorSym = {
+    val v = vix.intern
     val memo = memolookup(v)
     if(memo != null) {
       return memo
