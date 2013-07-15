@@ -31,4 +31,6 @@ object EPNeg extends EPrimitive {
 object EPCat extends EPrimitive {
   val ltype: LType = tilambda(m => tilambda(n => TVector(m) --> (TVector(n) --> TVector(m+n))))
 }
-
+object EPSlice extends EPrimitive {
+  val ltype: LType = tilambda(n => tilambda(i => tilambda(m => TVector(n) --> TVector(m))))
+}
