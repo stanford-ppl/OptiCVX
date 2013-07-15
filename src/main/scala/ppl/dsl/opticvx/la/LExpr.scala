@@ -23,10 +23,12 @@ trait EPrimitive extends LExpr {
 }
 
 object EPAdd extends EPrimitive {
-  val ltype: LType = tilambda(v => TVector(v) --> (TVector(v) --> TVector(v)))
+  val ltype: LType = tilambda(n => TVector(n) --> (TVector(n) --> TVector(n)))
 }
 object EPNeg extends EPrimitive {
-  val ltype: LType = tilambda(v => TVector(v) --> TVector(v))
+  val ltype: LType = tilambda(n => TVector(n) --> TVector(n))
 }
-
+object EPCat extends EPrimitive {
+  val ltype: LType = tilambda(m => tilambda(n => TVector(m) --> (TVector(n) --> TVector(m+n))))
+}
 

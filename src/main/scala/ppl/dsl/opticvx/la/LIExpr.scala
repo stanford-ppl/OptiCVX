@@ -1,5 +1,6 @@
 package ppl.dsl.opticvx.la
 
+import ppl.dsl.opticvx.common.IRValidationException
 import scala.collection.immutable.Seq
 
 
@@ -12,7 +13,9 @@ object IVar {
   }
 }
 
-sealed trait LIExpr
+sealed trait LIExpr {
+  def +(r: LIExpr): LIExpr = throw new IRValidationException()
+}
 
 case class IConst(p: Int) extends LIExpr
 case class IPoly(id: Int, cs: Seq[LIExpr]) extends LIExpr
