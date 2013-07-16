@@ -1,7 +1,10 @@
 package ppl.dsl.opticvx.la
 
 
-sealed trait LExpr
+sealed trait LExpr {
+  override def toString: String = PrettyPrint.pprint(this)
+  def ltype: LType = TypeChecker.typeOf(this)
+}
 
 object EVar {
   private var free_idx: Int = 0
@@ -19,18 +22,13 @@ case class EApp(fx: LExpr, arg: LExpr) extends LExpr
 case class EIApp(fx: LExpr, arg: LIExpr) extends LExpr
 
 trait EPrimitive extends LExpr {
-  val ltype: LType
+  val name: String
+  override val ltype: LType = null
 }
 
-object EPAdd extends EPrimitive {
-  val ltype: LType = tilambda(n => TVector(n) --> (TVector(n) --> TVector(n)))
-}
-object EPNeg extends EPrimitive {
-  val ltype: LType = tilambda(n => TVector(n) --> TVector(n))
-}
-object EPCat extends EPrimitive {
-  val ltype: LType = tilambda(m => tilambda(n => TVector(m) --> (TVector(n) --> TVector(m+n))))
-}
-object EPSlice extends EPrimitive {
-  val ltype: LType = tilambda(n => tilambda(i => tilambda(m => TVector(n) --> TVector(m))))
+object eilam {
+  def apply(f: LIExpr => LExpr): LExpr = {
+    val v = IVar.free
+    EILambda(v.id, f(v))
+  }
 }
